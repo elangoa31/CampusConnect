@@ -31,12 +31,14 @@ CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Row Level Security Policies
+DROP POLICY IF EXISTS "Public profiles are viewable by authenticated users" ON public.profiles;
 CREATE POLICY "Public profiles are viewable by authenticated users"
 ON public.profiles
 FOR SELECT
 TO authenticated
 USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile"
 ON public.profiles
 FOR INSERT
@@ -44,6 +46,7 @@ TO authenticated
 WITH CHECK (auth.uid() = id);
 
 -- Users can only update their own profile, but CANNOT change their role column
+DROP POLICY IF EXISTS "Users can update their own profile without escalating role" ON public.profiles;
 CREATE POLICY "Users can update their own profile without escalating role"
 ON public.profiles
 FOR UPDATE

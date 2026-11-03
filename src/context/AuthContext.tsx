@@ -29,9 +29,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, userRecord?: any) => {
     try {
-      const prof = await AuthService.getCurrentProfile(userId);
+      const prof = await AuthService.getCurrentProfile(userId, userRecord);
       setProfile(prof);
       return prof;
     } catch (err: any) {
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user?.id) {
-      await loadUserProfile(user.id);
+      await loadUserProfile(user.id, user);
     }
   };
 
@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        loadUserProfile(session.user.id, session.user);
       }
       setIsLoading(false);
     }).catch(() => {
@@ -65,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (_event, session) => {
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadUserProfile(session.user.id);
+          await loadUserProfile(session.user.id, session.user);
         } else {
           setProfile(null);
         }

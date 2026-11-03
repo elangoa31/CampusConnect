@@ -30,6 +30,19 @@ export class AuthService {
     });
 
     if (error) {
+      if (
+        error.code === 'email_not_confirmed' ||
+        error.message?.toLowerCase().includes('email not confirmed')
+      ) {
+        throw new Error(
+          'Email not confirmed yet. Please verify your email inbox or disable "Confirm email" in Supabase Auth settings to log in immediately.'
+        );
+      }
+      if (error.message?.toLowerCase().includes('invalid login credentials')) {
+        throw new Error(
+          'Invalid email or password. Please check your credentials and try again.'
+        );
+      }
       throw new Error(error.message);
     }
 
@@ -37,8 +50,8 @@ export class AuthService {
       throw new Error('Authentication succeeded but user record was not returned.');
     }
 
-    // Retrieve the user profile from database
-    const profile = await this.getCurrentProfile(authData.user.id);
+    // Retrieve the user profile from database with instantaneous metadata fallback
+    const profile = await this.getCurrentProfile(authData.user.id, authData.user);
 
     // Verify role matches selected portal
     if (expectedRole && profile && profile.role !== expectedRole) {
@@ -222,7 +235,7 @@ export class AuthService {
   /**
    * Get current authenticated user profile
    */
-  static async getCurrentProfile(userId: string): Promise<UserProfile | null> {
+  static async getCurrentProfile(userId: string, userRecord?: any): Promise<UserProfile | null> {
     if (!isSupabaseConfigured()) return null;
 
     try {
@@ -237,12 +250,12 @@ export class AuthService {
       }
 
       // Fallback to auth metadata if profile table is not yet provisioned or row not yet inserted
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.user_metadata && userData.user.id === userId) {
-        const meta = userData.user.user_metadata;
+      const activeUser = userRecord || (await supabase.auth.getUser()).data?.user;
+      if (activeUser?.user_metadata && (activeUser.id === userId || !activeUser.id)) {
+        const meta = activeUser.user_metadata;
         const fallbackProfile: UserProfile = {
           id: userId,
-          email: userData.user.email || '',
+          email: activeUser.email || '',
           full_name: meta.full_name || 'CampusConnect User',
           role: (meta.role as 'student' | 'staff') || 'student',
           department: meta.department || 'General',
