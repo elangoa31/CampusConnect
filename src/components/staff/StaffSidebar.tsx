@@ -8,10 +8,11 @@ import {
   LogOut,
   X,
   Briefcase,
+  CalendarCheck,
 } from 'lucide-react';
 import type { StaffProfile } from '../../types/staff.types';
 
-export type StaffDashboardTab = 'overview' | 'availability' | 'timetable' | 'profile';
+export type StaffDashboardTab = 'overview' | 'availability' | 'timetable' | 'meetings' | 'profile';
 
 interface StaffSidebarProps {
   activeTab: StaffDashboardTab;
@@ -22,6 +23,7 @@ interface StaffSidebarProps {
   mobileMenuOpen: boolean;
   onCloseMobileMenu: () => void;
   onOpenEditProfile: () => void;
+  pendingMeetingsCount?: number;
 }
 
 export const StaffSidebar: React.FC<StaffSidebarProps> = ({
@@ -33,6 +35,7 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
   mobileMenuOpen,
   onCloseMobileMenu,
   onOpenEditProfile,
+  pendingMeetingsCount = 0,
 }) => {
   const staffName = profile?.full_name || 'Faculty Member';
   const initial = staffName.charAt(0).toUpperCase();
@@ -43,6 +46,13 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
       label: 'Dashboard',
       icon: LayoutDashboard,
       description: 'Overview & Today Schedule',
+    },
+    {
+      id: 'meetings' as const,
+      label: 'Meeting Requests',
+      icon: CalendarCheck,
+      description: 'Student Consultations',
+      badge: pendingMeetingsCount,
     },
     {
       id: 'availability' as const,
@@ -124,10 +134,23 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
                     isActive ? 'text-teal-200' : 'text-slate-400'
                   }`}
                 />
-                <div className="flex flex-col text-left">
-                  <span>{item.label}</span>
+                <div className="flex flex-col text-left flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="truncate">{item.label}</span>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          isActive
+                            ? 'bg-amber-400 text-amber-950'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
                   <span
-                    className={`text-[10px] font-normal ${
+                    className={`text-[10px] font-normal truncate ${
                       isActive ? 'text-teal-100' : 'text-slate-400'
                     }`}
                   >

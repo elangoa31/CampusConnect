@@ -26,12 +26,15 @@ import { FacultyCard } from '../../components/dashboard/FacultyCard';
 import { FacultyDetailModal } from '../../components/dashboard/FacultyDetailModal';
 import { FacultySkeletonGrid } from '../../components/dashboard/FacultySkeletonGrid';
 import { FacultyEmptyState } from '../../components/dashboard/FacultyEmptyState';
+import { RequestMeetingModal } from '../../components/meetings/RequestMeetingModal';
+import { StudentMeetingList } from '../../components/meetings/StudentMeetingList';
+import { MeetingService } from '../../services/meeting.service';
 
 export const StudentDashboard: React.FC = () => {
   const { user, profile, isLoading: authLoading } = useAuth();
 
   // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'directory'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'directory' | 'meetings'>('overview');
 
   // Faculty Data State
   const [facultyList, setFacultyList] = useState<FacultyMember[]>([]);
@@ -40,6 +43,10 @@ export const StudentDashboard: React.FC = () => {
 
   // Selected faculty for detail modal
   const [selectedFaculty, setSelectedFaculty] = useState<FacultyMember | null>(null);
+
+  // Meeting Request Modal State
+  const [meetingTargetFaculty, setMeetingTargetFaculty] = useState<FacultyMember | null>(null);
+  const [pendingMeetingsCount, setPendingMeetingsCount] = useState<number>(0);
 
   // Filters State
   const [filters, setFilters] = useState<FacultyFilters>({
@@ -100,6 +107,37 @@ export const StudentDashboard: React.FC = () => {
       unsubscribe();
     };
   }, []);
+
+  // Synchronize meeting count for student
+  useEffect(() => {
+    if (!user?.id) return;
+    let isCurrent = true;
+
+    const fetchMeetingsCount = async () => {
+      try {
+        const meetings = await MeetingService.getStudentMeetings(user.id);
+        if (isCurrent) {
+          const activeCount = meetings.filter(
+            (m) => m.status === 'PENDING' || m.status === 'ACCEPTED'
+          ).length;
+          setPendingMeetingsCount(activeCount);
+        }
+      } catch {
+        // fail gracefully
+      }
+    };
+
+    fetchMeetingsCount();
+
+    const unsub = MeetingService.subscribeToStudentMeetings(user.id, () => {
+      fetchMeetingsCount();
+    });
+
+    return () => {
+      isCurrent = false;
+      unsub();
+    };
+  }, [user?.id]);
 
   // Compute live statistics from real database records
   const stats = useMemo(() => {
@@ -206,6 +244,7 @@ export const StudentDashboard: React.FC = () => {
           }
         }}
         facultyCount={facultyList.length}
+        meetingCount={pendingMeetingsCount}
       />
 
       {/* Main Content Area */}
@@ -253,7 +292,7 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             {/* Quick Action Button */}
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
               <Link
                 to="/student/profile-setup?edit=true"
                 className="inline-flex items-center gap-1.5 py-2.5 px-3.5 bg-teal-50 hover:bg-teal-100/80 text-[#0d5c58] font-semibold text-xs rounded-xl border border-teal-200/80 transition-colors shadow-2xs"
@@ -261,6 +300,30 @@ export const StudentDashboard: React.FC = () => {
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Profile</span>
               </Link>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab(activeTab === 'meetings' ? 'overview' : 'meetings')}
+                className={`inline-flex items-center gap-1.5 py-2.5 px-3.5 font-semibold text-xs rounded-xl border transition-colors shadow-2xs cursor-pointer ${
+                  activeTab === 'meetings'
+                    ? 'bg-[#0d5c58] text-white border-[#0d5c58]'
+                    : 'bg-teal-50 hover:bg-teal-100/80 text-[#0d5c58] border-teal-200/80'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>My Meetings</span>
+                {pendingMeetingsCount > 0 && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      activeTab === 'meetings'
+                        ? 'bg-amber-400 text-amber-950'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {pendingMeetingsCount}
+                  </span>
+                )}
+              </button>
 
               <button
                 type="button"
@@ -280,6 +343,7 @@ export const StudentDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  setActiveTab('directory');
                   const el = document.getElementById('faculty-directory-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
@@ -292,102 +356,116 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </section>
 
-        {/* Dashboard Overview Statistics Cards (Real Supabase Data) */}
-        <section aria-label="Dashboard Overview Statistics" className="space-y-2">
-          <div className="flex items-center justify-between text-left px-1">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Faculty Status Overview
-            </h2>
-            <span className="text-[11px] text-slate-400">
-              Real-time database records
-            </span>
-          </div>
-
-          <DashboardOverviewCards
-            stats={stats}
-            onFilterByStatus={handleOverviewStatusClick}
+        {/* Content depending on active tab */}
+        {activeTab === 'meetings' ? (
+          <StudentMeetingList
+            studentId={user?.id || ''}
+            onFindFacultyClick={() => {
+              setActiveTab('directory');
+              const el = document.getElementById('faculty-directory-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
           />
-        </section>
-
-        {/* Database Error Banner if Supabase fetch failed */}
-        {fetchError && (
-          <div
-            role="alert"
-            className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-2xl flex items-start justify-between gap-3 text-left animate-fadeIn"
-          >
-            <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block">Could not fetch faculty records</span>
-                <span className="text-red-700">{fetchError}</span>
+        ) : (
+          <>
+            {/* Dashboard Overview Statistics Cards (Real Supabase Data) */}
+            <section aria-label="Dashboard Overview Statistics" className="space-y-2">
+              <div className="flex items-center justify-between text-left px-1">
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Faculty Status Overview
+                </h2>
+                <span className="text-[11px] text-slate-400">
+                  Real-time database records
+                </span>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={loadFaculty}
-              className="px-3 py-1 bg-white border border-red-200 text-red-700 font-semibold text-xs rounded-lg hover:bg-red-50 transition-colors shrink-0"
-            >
-              Retry
-            </button>
-          </div>
-        )}
 
-        {/* Faculty Discovery Directory Section */}
-        <section
-          id="faculty-directory-section"
-          aria-label="Faculty Directory"
-          className="space-y-4 text-left pt-2"
-        >
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                Faculty Directory
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Locate faculty members and check their real-time availability status
-              </p>
-            </div>
+              <DashboardOverviewCards
+                stats={stats}
+                onFilterByStatus={handleOverviewStatusClick}
+              />
+            </section>
 
-            {facultyList.length > 0 && (
-              <span className="text-xs font-semibold text-[#0d5c58] bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200/60 hidden sm:inline-block">
-                {facultyList.length} Faculty Registered
-              </span>
+            {/* Database Error Banner if Supabase fetch failed */}
+            {fetchError && (
+              <div
+                role="alert"
+                className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-2xl flex items-start justify-between gap-3 text-left animate-fadeIn"
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Could not fetch faculty records</span>
+                    <span className="text-red-700">{fetchError}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadFaculty}
+                  className="px-3 py-1 bg-white border border-red-200 text-red-700 font-semibold text-xs rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
             )}
-          </div>
 
-          {/* Search & Filter Bar */}
-          <FacultyFiltersBar
-            filters={filters}
-            onChange={setFilters}
-            departments={availableDepartments}
-            designations={availableDesignations}
-            locations={availableLocations}
-            totalResults={filteredFaculty.length}
-            totalFaculty={facultyList.length}
-          />
+            {/* Faculty Discovery Directory Section */}
+            <section
+              id="faculty-directory-section"
+              aria-label="Faculty Directory"
+              className="space-y-4 text-left pt-2"
+            >
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                    Faculty Directory
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Locate faculty members and check their real-time availability status
+                  </p>
+                </div>
 
-          {/* Content States: Loading, Empty, or Faculty Cards Grid */}
-          {isFetchingFaculty ? (
-            <FacultySkeletonGrid count={6} />
-          ) : facultyList.length === 0 ? (
-            <FacultyEmptyState type="no-faculty" />
-          ) : filteredFaculty.length === 0 ? (
-            <FacultyEmptyState
-              type="no-match"
-              onClearFilters={handleClearFilters}
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredFaculty.map((faculty) => (
-                <FacultyCard
-                  key={faculty.id}
-                  faculty={faculty}
-                  onSelect={setSelectedFaculty}
+                {facultyList.length > 0 && (
+                  <span className="text-xs font-semibold text-[#0d5c58] bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200/60 hidden sm:inline-block">
+                    {facultyList.length} Faculty Registered
+                  </span>
+                )}
+              </div>
+
+              {/* Search & Filter Bar */}
+              <FacultyFiltersBar
+                filters={filters}
+                onChange={setFilters}
+                departments={availableDepartments}
+                designations={availableDesignations}
+                locations={availableLocations}
+                totalResults={filteredFaculty.length}
+                totalFaculty={facultyList.length}
+              />
+
+              {/* Content States: Loading, Empty, or Faculty Cards Grid */}
+              {isFetchingFaculty ? (
+                <FacultySkeletonGrid count={6} />
+              ) : facultyList.length === 0 ? (
+                <FacultyEmptyState type="no-faculty" />
+              ) : filteredFaculty.length === 0 ? (
+                <FacultyEmptyState
+                  type="no-match"
+                  onClearFilters={handleClearFilters}
                 />
-              ))}
-            </div>
-          )}
-        </section>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredFaculty.map((faculty) => (
+                    <FacultyCard
+                      key={faculty.id}
+                      faculty={faculty}
+                      onSelect={setSelectedFaculty}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
 
         {/* Profile Card Summary Banner */}
         <section className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
@@ -414,6 +492,28 @@ export const StudentDashboard: React.FC = () => {
       <FacultyDetailModal
         faculty={selectedFaculty}
         onClose={() => setSelectedFaculty(null)}
+        onRequestMeeting={(fac) => {
+          setSelectedFaculty(null);
+          setMeetingTargetFaculty(fac);
+        }}
+      />
+
+      {/* Request Meeting Modal */}
+      <RequestMeetingModal
+        faculty={meetingTargetFaculty}
+        studentId={user?.id || ''}
+        isOpen={Boolean(meetingTargetFaculty)}
+        onClose={() => setMeetingTargetFaculty(null)}
+        onSuccess={() => {
+          if (user?.id) {
+            MeetingService.getStudentMeetings(user.id).then((m) => {
+              const activeCount = m.filter(
+                (req) => req.status === 'PENDING' || req.status === 'ACCEPTED'
+              ).length;
+              setPendingMeetingsCount(activeCount);
+            });
+          }
+        }}
       />
 
       {/* Footer */}

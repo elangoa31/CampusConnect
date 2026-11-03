@@ -20,11 +20,13 @@ import { FacultyStatusBadge } from './FacultyStatusBadge';
 interface FacultyDetailModalProps {
   faculty: FacultyMember | null;
   onClose: () => void;
+  onRequestMeeting?: (faculty: FacultyMember) => void;
 }
 
 export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
   faculty,
   onClose,
+  onRequestMeeting,
 }) => {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [loadingTimetable, setLoadingTimetable] = useState<boolean>(Boolean(faculty?.id));
@@ -361,12 +363,24 @@ export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
           <span>Last status update: {formatFullTimestamp(faculty.availability_updated_at)}</span>
         </div>
 
-        {/* Close Action */}
-        <div className="pt-2">
+        {/* Actions: Request Meeting & Close Profile */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
+          {onRequestMeeting && (
+            <button
+              type="button"
+              onClick={() => onRequestMeeting(faculty)}
+              className="w-full sm:flex-1 py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-xs rounded-xl shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Calendar className="w-4 h-4 text-teal-200" />
+              <span>Request a Meeting</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+            className={`py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer ${
+              onRequestMeeting ? 'w-full sm:w-auto' : 'w-full'
+            }`}
           >
             Close Profile
           </button>

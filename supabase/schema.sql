@@ -198,3 +198,89 @@ GRANT ALL ON TABLE public.staff_timetables TO authenticated;
 GRANT ALL ON TABLE public.staff_timetables TO service_role;
 GRANT SELECT ON TABLE public.staff_timetables TO anon;
 
+-- ==============================================================================
+-- CampusConnect - Student-to-Faculty Meeting Request System (Phase 6)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.meeting_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  staff_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  requested_date DATE NOT NULL,
+  requested_time TEXT NOT NULL,
+  meeting_type TEXT NOT NULL CHECK (meeting_type IN ('IN_PERSON', 'ONLINE')),
+  purpose TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'COMPLETED')),
+  staff_response TEXT,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+
+  -- Foreign key constraints to profiles table for relation embedding in PostgREST
+  CONSTRAINT fk_meeting_student_profile FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  CONSTRAINT fk_meeting_staff_profile FOREIGN KEY (staff_id) REFERENCES public.profiles(id) ON DELETE CASCADE
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_meeting_requests_student ON public.meeting_requests(student_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_requests_staff ON public.meeting_requests(staff_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_requests_status ON public.meeting_requests(status);
+CREATE INDEX IF NOT EXISTS idx_meeting_requests_date ON public.meeting_requests(requested_date);
+CREATE INDEX IF NOT EXISTS idx_meeting_requests_created_at ON public.meeting_requests(created_at DESC);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.meeting_requests ENABLE ROW LEVEL SECURITY;
+
+-- 1. SELECT: Users can view requests they authored as a student or received as staff
+DROP POLICY IF EXISTS "Users can view their own or addressed meeting requests" ON public.meeting_requests;
+CREATE POLICY "Users can view their own or addressed meeting requests"
+ON public.meeting_requests
+FOR SELECT
+TO authenticated
+USING (auth.uid() = student_id OR auth.uid() = staff_id);
+
+-- 2. INSERT: Students can create meeting requests only under their own user ID
+DROP POLICY IF EXISTS "Students can create meeting requests" ON public.meeting_requests;
+CREATE POLICY "Students can create meeting requests"
+ON public.meeting_requests
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  auth.uid() = student_id
+  AND status = 'PENDING'
+  AND student_id != staff_id
+);
+
+-- 3. UPDATE by Student: Students can cancel their own pending requests only
+DROP POLICY IF EXISTS "Students can cancel their own pending requests" ON public.meeting_requests;
+CREATE POLICY "Students can cancel their own pending requests"
+ON public.meeting_requests
+FOR UPDATE
+TO authenticated
+USING (
+  auth.uid() = student_id 
+  AND status = 'PENDING'
+)
+WITH CHECK (
+  auth.uid() = student_id 
+  AND status = 'CANCELLED'
+);
+
+-- 4. UPDATE by Staff: Staff can accept, reject, or complete requests addressed to them
+DROP POLICY IF EXISTS "Staff can respond to and complete their incoming requests" ON public.meeting_requests;
+CREATE POLICY "Staff can respond to and complete their incoming requests"
+ON public.meeting_requests
+FOR UPDATE
+TO authenticated
+USING (
+  auth.uid() = staff_id
+)
+WITH CHECK (
+  auth.uid() = staff_id
+  AND status IN ('ACCEPTED', 'REJECTED', 'COMPLETED')
+);
+
+-- Table Grants
+GRANT ALL ON TABLE public.meeting_requests TO authenticated;
+GRANT ALL ON TABLE public.meeting_requests TO service_role;
+
+

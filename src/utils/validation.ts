@@ -264,3 +264,53 @@ export const validateTimetableEntryForm = (
   return errors;
 };
 
+export const validateMeetingRequestForm = (data: {
+  requested_date?: string;
+  requested_time?: string;
+  meeting_type?: string;
+  purpose?: string;
+}): Record<string, string> => {
+  const errors: Record<string, string> = {};
+
+  if (!data.requested_date || data.requested_date.trim() === '') {
+    errors.requested_date = 'Preferred date is required';
+  } else {
+    const parts = data.requested_date.trim().split('-');
+    if (parts.length === 3) {
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const reqDate = new Date(year, month, day);
+
+      if (isNaN(reqDate.getTime())) {
+        errors.requested_date = 'Please enter a valid date';
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (reqDate < today) {
+          errors.requested_date = 'Meeting date cannot be in the past';
+        }
+      }
+    } else {
+      errors.requested_date = 'Please enter a valid date (YYYY-MM-DD)';
+    }
+  }
+
+  if (!data.requested_time || data.requested_time.trim() === '') {
+    errors.requested_time = 'Preferred time is required';
+  }
+
+  if (!data.meeting_type || !['IN_PERSON', 'ONLINE'].includes(data.meeting_type)) {
+    errors.meeting_type = 'Please select a meeting type (In Person or Online)';
+  }
+
+  if (!data.purpose || data.purpose.trim().length < 5) {
+    errors.purpose = 'Please describe the meeting purpose (at least 5 characters)';
+  } else if (data.purpose.trim().length > 500) {
+    errors.purpose = 'Purpose must not exceed 500 characters';
+  }
+
+  return errors;
+};
+
+
