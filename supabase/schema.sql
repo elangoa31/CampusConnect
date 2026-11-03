@@ -220,15 +220,77 @@ CREATE TABLE IF NOT EXISTS public.meeting_requests (
   CONSTRAINT fk_meeting_staff_profile FOREIGN KEY (staff_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );
 
--- Indexes for performance
+-- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_meeting_requests_student ON public.meeting_requests(student_id);
 CREATE INDEX IF NOT EXISTS idx_meeting_requests_staff ON public.meeting_requests(staff_id);
 CREATE INDEX IF NOT EXISTS idx_meeting_requests_status ON public.meeting_requests(status);
 CREATE INDEX IF NOT EXISTS idx_meeting_requests_date ON public.meeting_requests(requested_date);
 CREATE INDEX IF NOT EXISTS idx_meeting_requests_created_at ON public.meeting_requests(created_at DESC);
 
--- Enable Row Level Security (RLS)
+-- Data Integrity & Validation Constraints
+ALTER TABLE public.meeting_requests
+  DROP CONSTRAINT IF EXISTS chk_meeting_purpose_not_empty;
+ALTER TABLE public.meeting_requests
+  ADD CONSTRAINT chk_meeting_purpose_not_empty CHECK (length(trim(purpose)) >= 5);
+
+ALTER TABLE public.meeting_requests
+  DROP CONSTRAINT IF EXISTS chk_meeting_time_not_empty;
+ALTER TABLE public.meeting_requests
+  ADD CONSTRAINT chk_meeting_time_not_empty CHECK (length(trim(requested_time)) >= 3);
+
+-- Trigger Function: Prevent Past Dates and Ensure Immutability of Core Fields
+CREATE OR REPLACE FUNCTION public.check_meeting_security_constraints()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- On INSERT: prevent past dates (must be >= CURRENT_DATE)
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.requested_date < CURRENT_DATE THEN
+      RAISE EXCEPTION 'Meeting date cannot be in the past (requested: %, current: %)', NEW.requested_date, CURRENT_DATE;
+    END IF;
+  END IF;
+
+  -- On UPDATE: core fields must remain strictly immutable
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.student_id <> OLD.student_id THEN
+      RAISE EXCEPTION 'student_id cannot be modified after creation';
+    END IF;
+
+    IF NEW.staff_id <> OLD.staff_id THEN
+      RAISE EXCEPTION 'staff_id cannot be modified after creation';
+    END IF;
+
+    IF NEW.requested_date <> OLD.requested_date THEN
+      RAISE EXCEPTION 'requested_date cannot be modified after creation';
+    END IF;
+
+    IF NEW.requested_time <> OLD.requested_time THEN
+      RAISE EXCEPTION 'requested_time cannot be modified after creation';
+    END IF;
+
+    IF NEW.meeting_type <> OLD.meeting_type THEN
+      RAISE EXCEPTION 'meeting_type cannot be modified after creation';
+    END IF;
+
+    IF NEW.purpose <> OLD.purpose THEN
+      RAISE EXCEPTION 'purpose cannot be modified after creation';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_meeting_security_constraints ON public.meeting_requests;
+CREATE TRIGGER trg_meeting_security_constraints
+  BEFORE INSERT OR UPDATE ON public.meeting_requests
+  FOR EACH ROW EXECUTE FUNCTION public.check_meeting_security_constraints();
+
+-- Enable and Force Row Level Security (RLS)
 ALTER TABLE public.meeting_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meeting_requests FORCE ROW LEVEL SECURITY;
 
 -- 1. SELECT: Users can view requests they authored as a student or received as staff
 DROP POLICY IF EXISTS "Users can view their own or addressed meeting requests" ON public.meeting_requests;
@@ -238,7 +300,7 @@ FOR SELECT
 TO authenticated
 USING (auth.uid() = student_id OR auth.uid() = staff_id);
 
--- 2. INSERT: Students can create meeting requests only under their own user ID
+-- 2. INSERT: Only verified students can create requests, and recipient must be a verified staff member
 DROP POLICY IF EXISTS "Students can create meeting requests" ON public.meeting_requests;
 CREATE POLICY "Students can create meeting requests"
 ON public.meeting_requests
@@ -248,6 +310,14 @@ WITH CHECK (
   auth.uid() = student_id
   AND status = 'PENDING'
   AND student_id != staff_id
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'student'
+  )
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = staff_id AND role = 'staff'
+  )
 );
 
 -- 3. UPDATE by Student: Students can cancel their own pending requests only
@@ -265,22 +335,48 @@ WITH CHECK (
   AND status = 'CANCELLED'
 );
 
--- 4. UPDATE by Staff: Staff can accept, reject, or complete requests addressed to them
+-- 4a. UPDATE by Staff: Staff can accept or reject only PENDING requests assigned to them
 DROP POLICY IF EXISTS "Staff can respond to and complete their incoming requests" ON public.meeting_requests;
-CREATE POLICY "Staff can respond to and complete their incoming requests"
+DROP POLICY IF EXISTS "Staff can respond to pending requests" ON public.meeting_requests;
+CREATE POLICY "Staff can respond to pending requests"
 ON public.meeting_requests
 FOR UPDATE
 TO authenticated
 USING (
   auth.uid() = staff_id
+  AND status = 'PENDING'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'staff'
+  )
 )
 WITH CHECK (
   auth.uid() = staff_id
-  AND status IN ('ACCEPTED', 'REJECTED', 'COMPLETED')
+  AND status IN ('ACCEPTED', 'REJECTED')
+);
+
+-- 4b. UPDATE by Staff: Staff can complete ONLY ACCEPTED requests assigned to them
+DROP POLICY IF EXISTS "Staff can complete accepted requests" ON public.meeting_requests;
+CREATE POLICY "Staff can complete accepted requests"
+ON public.meeting_requests
+FOR UPDATE
+TO authenticated
+USING (
+  auth.uid() = staff_id
+  AND status = 'ACCEPTED'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'staff'
+  )
+)
+WITH CHECK (
+  auth.uid() = staff_id
+  AND status = 'COMPLETED'
 );
 
 -- Table Grants
 GRANT ALL ON TABLE public.meeting_requests TO authenticated;
 GRANT ALL ON TABLE public.meeting_requests TO service_role;
+
 
 
