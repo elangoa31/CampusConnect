@@ -1,0 +1,152 @@
+import React, { useEffect, useState } from 'react';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { AuthService } from '../services/auth.service';
+import { AuthContext } from './auth-context-base';
+import type {
+  LoginFormData,
+  SignupFormData,
+  UserProfile,
+} from '../types/auth.types';
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isConfigured = isSupabaseConfigured();
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(() => isConfigured);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const prof = await AuthService.getCurrentProfile(userId);
+      setProfile(prof);
+    } catch (err: any) {
+      console.warn('Failed to load profile:', err.message);
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (user?.id) {
+      await loadUserProfile(user.id);
+    }
+  };
+
+  useEffect(() => {
+    if (!isConfigured) {
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadUserProfile(session.user.id);
+      }
+      setIsLoading(false);
+    }).catch(() => {
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = AuthService.onAuthStateChange(
+      async (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [isConfigured]);
+
+  const login = async (data: LoginFormData) => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const result = await AuthService.signInWithEmail(data);
+      setUser(result.user);
+      setProfile(result.profile);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your credentials.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signup = async (data: SignupFormData) => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const result = await AuthService.signUpWithEmail(data);
+      setUser(result.user);
+      setProfile(result.profile);
+      return { needsEmailVerification: result.needsEmailVerification };
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await AuthService.sendPasswordResetEmail(email);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setError(null);
+    try {
+      await AuthService.signInWithGoogle();
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in could not be initiated.');
+      throw err;
+    }
+  };
+
+  const signOut = async () => {
+    setIsLoading(true);
+    try {
+      await AuthService.signOut();
+      setUser(null);
+      setProfile(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        isLoading,
+        isConfigured,
+        error,
+        setError,
+        login,
+        signup,
+        resetPassword,
+        signInWithGoogle,
+        signOut,
+        refreshProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
