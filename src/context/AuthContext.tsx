@@ -99,8 +99,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const result = await AuthService.signUpWithEmail(data);
-      setUser(result.user);
-      setProfile(result.profile);
+      // Ensure session is cleared so user can complete registration screen and log in through login portal
+      if (result.session) {
+        await supabase.auth.signOut();
+      }
+      setUser(null);
+      setProfile(null);
       return { needsEmailVerification: result.needsEmailVerification };
     } catch (err: any) {
       setError(err.message || 'Failed to create account.');

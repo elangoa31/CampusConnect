@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   Loader2,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { RoleSelector } from './RoleSelector';
@@ -19,8 +20,9 @@ import type { SignupFormData, AuthValidationErrors, UserRole } from '../../types
 import { validateSignupForm } from '../../utils/validation';
 
 export const SignupForm: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signup, isLoading, intendedRole, setIntendedRole } = useAuth();
+  const { signup, intendedRole, setIntendedRole } = useAuth();
 
   const roleQuery = searchParams.get('role');
   const initialRole: UserRole = (roleQuery === 'student' || roleQuery === 'staff')
@@ -42,11 +44,29 @@ export const SignupForm: React.FC = () => {
 
   const [errors, setErrors] = useState<AuthValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [registeredSuccess, setRegisteredSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(4);
+
+  useEffect(() => {
+    if (!registeredSuccess) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate(`/login?role=${formData.role}&registered=true`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [registeredSuccess, formData.role, navigate]);
 
   const handleRoleChange = (role: UserRole) => {
     setFormData((prev) => ({ ...prev, role }));
     setIntendedRole(role);
+    setSubmitError(null);
     setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors.role;
@@ -63,13 +83,19 @@ export const SignupForm: React.FC = () => {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+    if (submitError) {
+      setSubmitError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
     const validationErrors = validateSignupForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      setSubmitError('Please complete all required fields correctly before submitting.');
       return;
     }
 
@@ -77,8 +103,9 @@ export const SignupForm: React.FC = () => {
     try {
       await signup(formData);
       setRegisteredSuccess(true);
-    } catch {
-      // Error handled by AuthContext
+    } catch (err: any) {
+      const msg = err?.message || 'Registration failed. Please try again.';
+      setSubmitError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -116,14 +143,38 @@ export const SignupForm: React.FC = () => {
             <span className="text-slate-400">Department:</span>
             <span className="font-medium text-slate-800">{formData.department}</span>
           </div>
+          {formData.role === 'student' && formData.registerNumber && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Register No:</span>
+              <span className="font-medium text-slate-800">{formData.registerNumber}</span>
+            </div>
+          )}
+          {formData.role === 'student' && formData.yearOfStudy && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Year of Study:</span>
+              <span className="font-medium text-slate-800">{formData.yearOfStudy}</span>
+            </div>
+          )}
+          {formData.role === 'staff' && formData.employeeId && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Employee ID:</span>
+              <span className="font-medium text-slate-800">{formData.employeeId}</span>
+            </div>
+          )}
+          {formData.role === 'staff' && formData.designation && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Designation:</span>
+              <span className="font-medium text-slate-800">{formData.designation}</span>
+            </div>
+          )}
         </div>
 
         <p className="text-[11px] text-slate-400 leading-normal max-w-xs mx-auto">
-          Please check your inbox if email confirmation is required by your institution.
+          Redirecting to {formData.role === 'staff' ? 'faculty' : 'student'} login in {countdown}s...
         </p>
 
         <Link
-          to={`/login?role=${formData.role}`}
+          to={`/login?role=${formData.role}&registered=true`}
           className="inline-block w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 text-center"
         >
           Sign in to your account
@@ -163,7 +214,7 @@ export const SignupForm: React.FC = () => {
           error={errors.fullName}
           leftIcon={<User className="w-4 h-4" />}
           autoComplete="name"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* College Email */}
@@ -176,7 +227,7 @@ export const SignupForm: React.FC = () => {
           error={errors.email}
           leftIcon={<Mail className="w-4 h-4" />}
           autoComplete="email"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Department */}
@@ -188,7 +239,7 @@ export const SignupForm: React.FC = () => {
           onChange={(e) => handleChange('department', e.target.value)}
           error={errors.department}
           leftIcon={<Building2 className="w-4 h-4" />}
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Student-specific conditional fields */}
@@ -202,7 +253,7 @@ export const SignupForm: React.FC = () => {
               onChange={(e) => handleChange('registerNumber', e.target.value)}
               error={errors.registerNumber}
               leftIcon={<Hash className="w-4 h-4" />}
-              disabled={isLoading || isSubmitting}
+              disabled={isSubmitting}
             />
 
             <div className="text-left space-y-1.5">
@@ -213,7 +264,7 @@ export const SignupForm: React.FC = () => {
                 <select
                   value={formData.yearOfStudy || ''}
                   onChange={(e) => handleChange('yearOfStudy', e.target.value)}
-                  disabled={isLoading || isSubmitting}
+                  disabled={isSubmitting}
                   className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${
                     errors.yearOfStudy
                       ? 'border-red-400 focus:border-red-500'
@@ -249,7 +300,7 @@ export const SignupForm: React.FC = () => {
               onChange={(e) => handleChange('employeeId', e.target.value)}
               error={errors.employeeId}
               leftIcon={<BadgeCheck className="w-4 h-4" />}
-              disabled={isLoading || isSubmitting}
+              disabled={isSubmitting}
             />
 
             <div className="text-left space-y-1.5">
@@ -260,7 +311,7 @@ export const SignupForm: React.FC = () => {
                 <select
                   value={formData.designation || ''}
                   onChange={(e) => handleChange('designation', e.target.value)}
-                  disabled={isLoading || isSubmitting}
+                  disabled={isSubmitting}
                   className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${
                     errors.designation
                       ? 'border-red-400 focus:border-red-500'
@@ -295,7 +346,7 @@ export const SignupForm: React.FC = () => {
           error={errors.password}
           showStrengthMeter={true}
           autoComplete="new-password"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Confirm Password */}
@@ -306,13 +357,25 @@ export const SignupForm: React.FC = () => {
           onChange={(e) => handleChange('confirmPassword', e.target.value)}
           error={errors.confirmPassword}
           autoComplete="new-password"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
+
+        {/* Form-level Error Alert */}
+        {submitError && (
+          <div
+            role="alert"
+            className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2.5 animate-fadeIn"
+          >
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <span className="leading-relaxed font-medium">{submitError}</span>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
+          aria-busy={isSubmitting}
           className="w-full mt-2 py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] active:bg-[#073634] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#0d5c58]/40 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
           {isSubmitting ? (

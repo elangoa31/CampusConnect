@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { RoleSelector } from '../components/auth/RoleSelector';
 import { PasswordInput } from '../components/auth/PasswordInput';
@@ -8,6 +8,7 @@ import { LoginForm } from '../components/auth/LoginForm';
 import { SignupForm } from '../components/auth/SignupForm';
 import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { AuthService } from '../services/auth.service';
 import { useState } from 'react';
 import type { UserRole } from '../types/auth.types';
 
@@ -125,6 +126,120 @@ describe('Authentication Components', () => {
 
       // Student register number disappears
       expect(screen.queryByPlaceholderText(/e\.g\. 717821F101/i)).not.toBeInTheDocument();
+    });
+    it('displays validation errors and summary when clicking Create account on empty form', async () => {
+      renderWithProviders(<SignupForm />);
+      const submitBtn = screen.getByRole('button', { name: /create account/i });
+      fireEvent.click(submitBtn);
+
+      expect(await screen.findByText(/full name is required/i)).toBeInTheDocument();
+      expect(await screen.findByText(/college email is required/i)).toBeInTheDocument();
+      expect(await screen.findByText(/department is required/i)).toBeInTheDocument();
+      expect(await screen.findByText(/register number is required for students/i)).toBeInTheDocument();
+      expect(await screen.findByText(/year of study is required/i)).toBeInTheDocument();
+      expect(await screen.findByText(/password is required/i)).toBeInTheDocument();
+      expect(await screen.findByText(/please complete all required fields correctly before submitting/i)).toBeInTheDocument();
+    });
+
+    it('displays the actual Supabase error when student registration fails', async () => {
+      vi.spyOn(AuthService, 'signUpWithEmail').mockRejectedValueOnce(
+        new Error('Email rate limit exceeded by authentication service. Please wait a few minutes before trying again.')
+      );
+
+      renderWithProviders(<SignupForm />);
+
+      // Fill in valid student data
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. Dr\. Jane Smith/i), {
+        target: { value: 'Alex Morgan' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/yourname@college\.edu/i), {
+        target: { value: 'alex@college.edu' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. Computer Science/i), {
+        target: { value: 'Computer Science' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 717821F101/i), {
+        target: { value: 'CS-2026-001' },
+      });
+      fireEvent.change(screen.getByRole('combobox'), {
+        target: { value: '3rd Year' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/create a strong password/i), {
+        target: { value: 'PassWord123!' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), {
+        target: { value: 'PassWord123!' },
+      });
+
+      const submitBtn = screen.getByRole('button', { name: /create account/i });
+      fireEvent.click(submitBtn);
+
+      expect(
+        await screen.findByText(/email rate limit exceeded by authentication service/i)
+      ).toBeInTheDocument();
+    });
+
+    it('renders registration complete state on successful student registration', async () => {
+      vi.spyOn(AuthService, 'signUpWithEmail').mockResolvedValueOnce({
+        user: { id: 'usr-123' },
+        session: null,
+        profile: {
+          id: 'usr-123',
+          email: 'alex@college.edu',
+          full_name: 'Alex Morgan',
+          role: 'student',
+          department: 'Computer Science',
+          register_number: 'CS-2026-001',
+          year_of_study: '3rd Year',
+        },
+        needsEmailVerification: false,
+      });
+
+      renderWithProviders(<SignupForm />);
+
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. Dr\. Jane Smith/i), {
+        target: { value: 'Alex Morgan' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/yourname@college\.edu/i), {
+        target: { value: 'alex@college.edu' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. Computer Science/i), {
+        target: { value: 'Computer Science' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 717821F101/i), {
+        target: { value: 'CS-2026-001' },
+      });
+      fireEvent.change(screen.getByRole('combobox'), {
+        target: { value: '3rd Year' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/create a strong password/i), {
+        target: { value: 'PassWord123!' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), {
+        target: { value: 'PassWord123!' },
+      });
+
+      const submitBtn = screen.getByRole('button', { name: /create account/i });
+      fireEvent.click(submitBtn);
+
+      expect(await screen.findByText(/registration complete/i)).toBeInTheDocument();
+      expect(screen.getByText(/sign in to your account/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('LoginForm Registration Banner', () => {
+    it('displays registration success alert when query param registered=true is present', () => {
+      render(
+        <AuthProvider>
+          <MemoryRouter initialEntries={['/login?role=student&registered=true']}>
+            <LoginForm />
+          </MemoryRouter>
+        </AuthProvider>
+      );
+
+      expect(
+        screen.getByText(/registration successful! please sign in with your college email and password/i)
+      ).toBeInTheDocument();
     });
   });
 

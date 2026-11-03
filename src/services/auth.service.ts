@@ -92,11 +92,24 @@ export class AuthService {
       password: data.password,
       options: {
         data: metaData,
-        emailRedirectTo: `${window.location.origin}/login?role=${data.role}`,
+        emailRedirectTo: `${window.location.origin}/login?role=${data.role}&registered=true`,
       },
     });
 
     if (error) {
+      if (
+        error.code === 'over_email_send_rate_limit' ||
+        error.message?.toLowerCase().includes('rate limit')
+      ) {
+        throw new Error(
+          'Email rate limit exceeded by authentication service. Please wait a few minutes before trying again.'
+        );
+      }
+      if (error.message?.toLowerCase().includes('already registered')) {
+        throw new Error(
+          'An account with this college email already exists. Please sign in instead.'
+        );
+      }
       throw new Error(error.message);
     }
 
@@ -109,10 +122,10 @@ export class AuthService {
 
     // Check if profile was created via database trigger or try direct upsert
     let profile: UserProfile | null = null;
-    try {
-      if (authData.session) {
+    if (authData.session) {
+      try {
         // Direct upsert to ensure profile is populated immediately if trigger isn't applied yet
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .upsert({
             id: authData.user.id,
@@ -126,12 +139,18 @@ export class AuthService {
             designation: data.role === 'staff' ? data.designation?.trim() : null,
           })
           .select()
-          .single();
+          .maybeSingle();
 
-        profile = profileData as UserProfile;
+        if (!profileError && profileData) {
+          profile = profileData as UserProfile;
+        }
+      } catch (err) {
+        console.warn('Direct profile upsert skipped:', err);
       }
-    } catch {
-      // If table doesn't exist yet, we still construct the client profile representation from metadata
+    }
+
+    if (!profile) {
+      // If table doesn't exist yet or session is null, we construct the client profile representation from metadata
       profile = {
         id: authData.user.id,
         email: data.email.trim(),
@@ -213,28 +232,39 @@ export class AuthService {
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.warn('Could not fetch profile from profiles table:', error.message);
-        // Fallback to auth metadata if profile table is not yet provisioned
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.user_metadata) {
-          const meta = userData.user.user_metadata;
-          return {
-            id: userId,
-            email: userData.user.email || '',
-            full_name: meta.full_name || 'CampusConnect User',
-            role: (meta.role as 'student' | 'staff') || 'student',
-            department: meta.department || 'General',
-            register_number: meta.register_number,
-            year_of_study: meta.year_of_study,
-            employee_id: meta.employee_id,
-            designation: meta.designation,
-          };
-        }
-        return null;
+      if (!error && data) {
+        return data as UserProfile;
       }
 
-      return data as UserProfile;
+      // Fallback to auth metadata if profile table is not yet provisioned or row not yet inserted
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user?.user_metadata && userData.user.id === userId) {
+        const meta = userData.user.user_metadata;
+        const fallbackProfile: UserProfile = {
+          id: userId,
+          email: userData.user.email || '',
+          full_name: meta.full_name || 'CampusConnect User',
+          role: (meta.role as 'student' | 'staff') || 'student',
+          department: meta.department || 'General',
+          register_number: meta.register_number,
+          year_of_study: meta.year_of_study,
+          employee_id: meta.employee_id,
+          designation: meta.designation,
+        };
+
+        // If the table exists but row was missing, try inserting it
+        if (!error && !data) {
+          try {
+            await supabase.from('profiles').insert(fallbackProfile);
+          } catch {
+            // Ignore error
+          }
+        }
+
+        return fallbackProfile;
+      }
+
+      return null;
     } catch {
       return null;
     }

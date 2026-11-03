@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Loader2, GraduationCap, Briefcase } from 'lucide-react';
+import { Mail, Loader2, GraduationCap, Briefcase, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { AuthInput } from './AuthInput';
 import { PasswordInput } from './PasswordInput';
@@ -10,7 +10,7 @@ import { validateLoginForm } from '../../utils/validation';
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, signInWithGoogle, isLoading, intendedRole, setIntendedRole } = useAuth();
+  const { login, signInWithGoogle, intendedRole, setIntendedRole } = useAuth();
 
   // Determine portal role from query param or auth state
   const roleQuery = searchParams.get('role');
@@ -26,19 +26,28 @@ export const LoginForm: React.FC = () => {
 
   const [errors, setErrors] = useState<AuthValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const isJustRegistered = searchParams.get('registered') === 'true';
 
   const handleChange = (field: keyof LoginFormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+    if (loginError) {
+      setLoginError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
+
     const validationErrors = validateLoginForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      setLoginError('Please enter your college email and password.');
       return;
     }
 
@@ -53,8 +62,8 @@ export const LoginForm: React.FC = () => {
       } else {
         navigate('/student/dashboard');
       }
-    } catch {
-      // Error handled by AuthContext
+    } catch (err: any) {
+      setLoginError(err?.message || 'Login failed. Please check your credentials.');
     } finally {
       setIsSubmitting(false);
     }
@@ -62,9 +71,10 @@ export const LoginForm: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      setLoginError(null);
       await signInWithGoogle(activePortalRole);
-    } catch {
-      // Error handled by AuthContext
+    } catch (err: any) {
+      setLoginError(err?.message || 'Google sign-in could not be initiated.');
     }
   };
 
@@ -90,7 +100,7 @@ export const LoginForm: React.FC = () => {
       </div>
 
       {/* Header */}
-      <div className="mb-6 text-left">
+      <div className="mb-5 text-left">
         <h2 className="text-2xl font-bold tracking-tight text-[#0f172a] uppercase">
           WELCOME BACK
         </h2>
@@ -98,6 +108,30 @@ export const LoginForm: React.FC = () => {
           Welcome back! Please enter your details.
         </p>
       </div>
+
+      {/* Post-Registration Success Banner */}
+      {isJustRegistered && (
+        <div
+          role="status"
+          className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-start gap-2.5 animate-fadeIn"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <span className="leading-relaxed font-medium">
+            Registration successful! Please sign in with your college email and password.
+          </span>
+        </div>
+      )}
+
+      {/* Login Error Banner */}
+      {loginError && (
+        <div
+          role="alert"
+          className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2.5 animate-fadeIn"
+        >
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+          <span className="leading-relaxed font-medium">{loginError}</span>
+        </div>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -112,7 +146,7 @@ export const LoginForm: React.FC = () => {
           error={errors.email}
           leftIcon={<Mail className="w-4 h-4" />}
           autoComplete="email"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Password */}
@@ -124,7 +158,7 @@ export const LoginForm: React.FC = () => {
           onChange={(e) => handleChange('password', e.target.value)}
           error={errors.password}
           autoComplete="current-password"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Remember me & Forgot password */}
@@ -134,7 +168,7 @@ export const LoginForm: React.FC = () => {
               type="checkbox"
               checked={formData.rememberMe}
               onChange={(e) => handleChange('rememberMe', e.target.checked)}
-              disabled={isLoading || isSubmitting}
+              disabled={isSubmitting}
               className="w-4 h-4 rounded border-slate-300 text-[#0f766e] focus:ring-[#0f766e]/30 focus:ring-offset-0 transition-colors"
             />
             <span className="text-xs text-slate-600 font-medium">Remember me</span>
@@ -152,6 +186,7 @@ export const LoginForm: React.FC = () => {
         <button
           type="submit"
           disabled={isSubmitting}
+          aria-busy={isSubmitting}
           className="w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] active:bg-[#073634] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#0d5c58]/40 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
           {isSubmitting ? (
@@ -168,7 +203,7 @@ export const LoginForm: React.FC = () => {
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
           className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-all duration-150 flex items-center justify-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
