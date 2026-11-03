@@ -41,8 +41,8 @@ The system enforces strict two-role separation:
 - [x] **Student Registration (`/signup?role=student`)**:
   - Full Name, College Email, Register Number, Department, Year of Study (Dropdown), Password, Confirm Password.
 - [x] **Staff Registration (`/signup?role=staff`)**:
-  - Full Name, College Email, Employee ID, Department, Designation (Dropdown), Faculty Verification Code, Password, Confirm Password.
-  - **Staff Restriction Mechanism**: Requires a valid institutional Faculty Verification Code (`VITE_STAFF_VERIFICATION_CODE` or default `FACULTY2026`) to prevent unauthorized users from claiming staff accounts.
+  - Full Name, College Email, Employee ID, Department, Designation (Dropdown), Password, Confirm Password.
+  - Faculty can register and sign in directly without requiring an administrator passkey or verification code.
 
 #### 4. Route Protection & Dashboard Placeholders
 - [x] **ProtectedRoute (`src/components/auth/ProtectedRoute.tsx`)**:
