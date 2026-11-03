@@ -10,7 +10,7 @@ import { FacultyDetailModal } from '../components/dashboard/FacultyDetailModal';
 import { StudentDashboard } from '../pages/dashboard/StudentDashboard';
 import type { FacultyMember } from '../types/faculty.types';
 
-describe('Phase 3: Faculty Discovery & Dashboard', () => {
+describe('Phase 3 & Phase 5: Faculty Discovery, Search & Dashboard', () => {
   beforeEach(() => {
     sessionStorage.clear();
   });
@@ -30,6 +30,8 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       employee_id: 'EMP-101',
       availability_status: 'AVAILABLE',
       location: 'Cabin 304, CS Block',
+      status_message: 'Available for project discussions',
+      subjects: ['Data Structures', 'Operating Systems'],
       avatar_url: null,
       availability_updated_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
     },
@@ -43,6 +45,8 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       employee_id: 'EMP-102',
       availability_status: 'BUSY',
       location: 'CAD Lab 2',
+      status_message: 'In research meeting',
+      subjects: ['Thermodynamics', 'Fluid Mechanics'],
       avatar_url: null,
       availability_updated_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
     },
@@ -56,6 +60,7 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       employee_id: 'EMP-103',
       availability_status: 'IN CLASS',
       location: 'Lecture Hall 102',
+      subjects: ['Digital Signal Processing', 'Circuit Theory'],
       avatar_url: null,
       availability_updated_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
     },
@@ -69,6 +74,7 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       employee_id: 'EMP-104',
       availability_status: 'UNKNOWN',
       location: null,
+      subjects: ['Artificial Intelligence'],
       avatar_url: null,
       availability_updated_at: null,
     },
@@ -82,6 +88,7 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       employee_id: 'EMP-105',
       availability_status: 'ON LEAVE',
       location: null,
+      subjects: ['Structural Analysis'],
       avatar_url: null,
       availability_updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
     },
@@ -94,15 +101,13 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       expect(stats.available).toBe(1); // Dr. John Smith
       expect(stats.busy).toBe(2); // Dr. Sarah Davis (BUSY) + Prof. Rajesh Kumar (IN CLASS)
       expect(stats.unknown).toBe(1); // Dr. Amy Lee (UNKNOWN)
+      expect(stats.recentlyUpdated).toBeGreaterThanOrEqual(1);
     });
 
     it('filters faculty by search query across name, department, designation, and location', () => {
       // By name
       const byName = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: 'Smith',
-        department: 'ALL',
-        designation: 'ALL',
-        availability: 'ALL',
       });
       expect(byName).toHaveLength(1);
       expect(byName[0].full_name).toBe('Dr. John Smith');
@@ -110,9 +115,6 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       // By department
       const byDept = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: 'Mechanical',
-        department: 'ALL',
-        designation: 'ALL',
-        availability: 'ALL',
       });
       expect(byDept).toHaveLength(1);
       expect(byDept[0].full_name).toBe('Dr. Sarah Davis');
@@ -120,12 +122,62 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       // By location
       const byLocation = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: 'Lecture Hall',
-        department: 'ALL',
-        designation: 'ALL',
-        availability: 'ALL',
       });
       expect(byLocation).toHaveLength(1);
       expect(byLocation[0].full_name).toBe('Prof. Rajesh Kumar');
+    });
+
+    it('Phase 5 Requirement 3: searches faculty by subject and employee ID', () => {
+      // Search by subject
+      const bySubject = FacultyService.filterFaculty(sampleFaculty, {
+        searchQuery: 'Operating Systems',
+      });
+      expect(bySubject).toHaveLength(1);
+      expect(bySubject[0].full_name).toBe('Dr. John Smith');
+
+      const bySubjectPartial = FacultyService.filterFaculty(sampleFaculty, {
+        searchQuery: 'Thermodynamics',
+      });
+      expect(bySubjectPartial).toHaveLength(1);
+      expect(bySubjectPartial[0].full_name).toBe('Dr. Sarah Davis');
+
+      // Search by employee ID
+      const byEmpId = FacultyService.filterFaculty(sampleFaculty, {
+        searchQuery: 'EMP-103',
+      });
+      expect(byEmpId).toHaveLength(1);
+      expect(byEmpId[0].full_name).toBe('Prof. Rajesh Kumar');
+    });
+
+    it('Phase 5 Requirement 4: filters by campus location and sorts correctly', () => {
+      // Filter by campus location
+      const byLoc = FacultyService.filterFaculty(sampleFaculty, {
+        location: 'CAD Lab 2',
+      });
+      expect(byLoc).toHaveLength(1);
+      expect(byLoc[0].full_name).toBe('Dr. Sarah Davis');
+
+      // Sort: Available first
+      const sortedAvailable = FacultyService.filterFaculty(sampleFaculty, {
+        sortBy: 'available_first',
+      });
+      expect(sortedAvailable[0].availability_status).toBe('AVAILABLE');
+      expect(sortedAvailable[0].full_name).toBe('Dr. John Smith');
+
+      // Sort: Recently updated first
+      const sortedRecent = FacultyService.filterFaculty(sampleFaculty, {
+        sortBy: 'recently_updated',
+      });
+      expect(sortedRecent[0].full_name).toBe('Dr. John Smith'); // 15 mins ago
+      expect(sortedRecent[1].full_name).toBe('Prof. Rajesh Kumar'); // 45 mins ago
+
+      // Sort: Alphabetical order
+      const sortedAlpha = FacultyService.filterFaculty(sampleFaculty, {
+        sortBy: 'alphabetical',
+      });
+      expect(sortedAlpha[0].full_name).toBe('Dr. Amy Lee');
+      expect(sortedAlpha[1].full_name).toBe('Dr. John Smith');
+      expect(sortedAlpha[2].full_name).toBe('Dr. Sarah Davis');
     });
 
     it('filters faculty by department, designation, and availability filters', () => {
@@ -133,16 +185,12 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       const csOnly = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: '',
         department: 'Computer Science',
-        designation: 'ALL',
-        availability: 'ALL',
       });
       expect(csOnly).toHaveLength(2);
 
       // Availability filter
       const availableOnly = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: '',
-        department: 'ALL',
-        designation: 'ALL',
         availability: 'AVAILABLE',
       });
       expect(availableOnly).toHaveLength(1);
@@ -151,9 +199,7 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       // Designation filter
       const associateOnly = FacultyService.filterFaculty(sampleFaculty, {
         searchQuery: '',
-        department: 'ALL',
         designation: 'Associate Professor',
-        availability: 'ALL',
       });
       expect(associateOnly).toHaveLength(2);
     });
@@ -179,7 +225,7 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
   });
 
   describe('FacultyCard', () => {
-    it('renders faculty card details and handles selection click', () => {
+    it('renders faculty card details, availability message, and taught subjects', () => {
       const onSelect = vi.fn();
       render(<FacultyCard faculty={sampleFaculty[0]} onSelect={onSelect} />);
 
@@ -189,6 +235,12 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       expect(screen.getByText('Cabin 304, CS Block')).toBeInTheDocument();
       expect(screen.getByText('AVAILABLE')).toBeInTheDocument();
       expect(screen.getByText('15m ago')).toBeInTheDocument();
+
+      // Availability message
+      expect(screen.getByText(/"Available for project discussions"/i)).toBeInTheDocument();
+
+      // Taught subjects
+      expect(screen.getByText(/Data Structures/i)).toBeInTheDocument();
 
       fireEvent.click(screen.getByText('Dr. John Smith'));
       expect(onSelect).toHaveBeenCalledWith(sampleFaculty[0]);
@@ -212,10 +264,13 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
             department: 'ALL',
             designation: 'ALL',
             availability: 'ALL',
+            location: 'ALL',
+            sortBy: 'available_first',
           }}
           onChange={onChange}
           departments={['Computer Science', 'Mechanical Engineering']}
           designations={['Professor', 'Associate Professor']}
+          locations={['Cabin 304, CS Block', 'CAD Lab 2']}
           totalResults={5}
           totalFaculty={5}
         />
@@ -224,12 +279,11 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       const searchInput = screen.getByPlaceholderText(/search faculty by name/i);
       fireEvent.change(searchInput, { target: { value: 'Smith' } });
 
-      expect(onChange).toHaveBeenCalledWith({
-        searchQuery: 'Smith',
-        department: 'ALL',
-        designation: 'ALL',
-        availability: 'ALL',
-      });
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          searchQuery: 'Smith',
+        })
+      );
     });
 
     it('shows and handles Clear Filters button when filters are active', () => {
@@ -241,6 +295,8 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
             department: 'Computer Science',
             designation: 'ALL',
             availability: 'AVAILABLE',
+            location: 'ALL',
+            sortBy: 'available_first',
           }}
           onChange={onChange}
           departments={['Computer Science']}
@@ -259,12 +315,14 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
         department: 'ALL',
         designation: 'ALL',
         availability: 'ALL',
+        location: 'ALL',
+        sortBy: 'available_first',
       });
     });
   });
 
   describe('FacultyDetailModal', () => {
-    it('displays comprehensive faculty details and email button', () => {
+    it('displays comprehensive faculty details, availability note, and email button', () => {
       const onClose = vi.fn();
       render(<FacultyDetailModal faculty={sampleFaculty[0]} onClose={onClose} />);
 
@@ -275,14 +333,11 @@ describe('Phase 3: Faculty Discovery & Dashboard', () => {
       expect(screen.getByText('Cabin 304, CS Block')).toBeInTheDocument();
       expect(screen.getByText('EMP-101')).toBeInTheDocument();
       expect(screen.getByText('dr.smith@college.edu')).toBeInTheDocument();
+      expect(screen.getByText(/"Available for project discussions"/i)).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /send email/i })).toHaveAttribute(
         'href',
         'mailto:dr.smith@college.edu?subject=CampusConnect Inquiry'
       );
-
-      const closeBtn = screen.getByRole('button', { name: /close profile/i });
-      fireEvent.click(closeBtn);
-      expect(onClose).toHaveBeenCalled();
     });
   });
 

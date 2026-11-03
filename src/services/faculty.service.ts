@@ -33,6 +33,30 @@ export class FacultyService {
 
       if (!data) return [];
 
+      // Query taught subjects from staff_timetables to enrich search by subject
+      const subjectsMap: Record<string, string[]> = {};
+      try {
+        const { data: timetableRows, error: ttError } = await supabase
+          .from('staff_timetables')
+          .select('user_id, subject');
+
+        if (!ttError && timetableRows) {
+          timetableRows.forEach((row: any) => {
+            if (row.user_id && row.subject) {
+              if (!subjectsMap[row.user_id]) {
+                subjectsMap[row.user_id] = [];
+              }
+              const cleanSubject = row.subject.trim();
+              if (cleanSubject && !subjectsMap[row.user_id].includes(cleanSubject)) {
+                subjectsMap[row.user_id].push(cleanSubject);
+              }
+            }
+          });
+        }
+      } catch {
+        // Non-critical if timetable table is still empty
+      }
+
       return data.map((item: any) => {
         // Valid status check: only allow confirmed status values, otherwise default to UNKNOWN
         const rawStatus = (item.availability_status || '').toUpperCase().trim();
@@ -49,6 +73,8 @@ export class FacultyService {
           ? (rawStatus as AvailabilityStatus)
           : 'UNKNOWN';
 
+        const taughtSubjects = subjectsMap[item.id] || item.subjects || [];
+
         return {
           id: item.id,
           email: item.email || '',
@@ -62,6 +88,7 @@ export class FacultyService {
           status_message: item.status_message || null,
           status_start_time: item.status_start_time || null,
           status_end_time: item.status_end_time || null,
+          subjects: taughtSubjects,
           avatar_url: item.avatar_url || null,
           availability_updated_at: item.availability_updated_at || item.updated_at || null,
           created_at: item.created_at,
@@ -139,6 +166,10 @@ export class FacultyService {
     let available = 0;
     let busy = 0;
     let unknown = 0;
+    let recentlyUpdated = 0;
+
+    const now = Date.now();
+    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
 
     for (const faculty of facultyList) {
       if (faculty.availability_status === 'AVAILABLE') {
@@ -154,6 +185,13 @@ export class FacultyService {
       ) {
         unknown++;
       }
+
+      if (faculty.availability_updated_at) {
+        const time = new Date(faculty.availability_updated_at).getTime();
+        if (!isNaN(time) && (now - time) <= twentyFourHoursMs && (now - time) >= -60000) {
+          recentlyUpdated++;
+        }
+      }
     }
 
     return {
@@ -161,59 +199,133 @@ export class FacultyService {
       available,
       busy,
       unknown,
+      recentlyUpdated,
     };
   }
 
   /**
-   * Filter faculty directory by name search, department, designation, and availability
+   * Filter faculty directory by name, department, designation, subject, employee ID, location, and sorting
    */
   static filterFaculty(
     facultyList: FacultyMember[],
-    filters: FacultyFilters
+    filters: Partial<FacultyFilters>
   ): FacultyMember[] {
-    return facultyList.filter((faculty) => {
-      // 1. Search Query (matches name, department, designation, or location)
-      if (filters.searchQuery.trim() !== '') {
-        const query = filters.searchQuery.toLowerCase().trim();
+    const {
+      searchQuery = '',
+      department = 'ALL',
+      designation = 'ALL',
+      availability = 'ALL',
+      location = 'ALL',
+      sortBy = 'available_first',
+    } = filters;
+
+    const filtered = facultyList.filter((faculty) => {
+      // 1. Search Query: matches name, department, designation, location, employee ID, or taught subjects
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase().trim();
         const nameMatch = faculty.full_name.toLowerCase().includes(query);
         const deptMatch = faculty.department.toLowerCase().includes(query);
         const desigMatch = (faculty.designation || '')
           .toLowerCase()
           .includes(query);
         const locMatch = (faculty.location || '').toLowerCase().includes(query);
+        const empIdMatch = (faculty.employee_id || '').toLowerCase().includes(query);
+        const subjectMatch = (faculty.subjects || []).some((s) =>
+          s.toLowerCase().includes(query)
+        );
 
-        if (!nameMatch && !deptMatch && !desigMatch && !locMatch) {
+        if (
+          !nameMatch &&
+          !deptMatch &&
+          !desigMatch &&
+          !locMatch &&
+          !empIdMatch &&
+          !subjectMatch
+        ) {
           return false;
         }
       }
 
       // 2. Department filter
-      if (filters.department && filters.department !== 'ALL') {
+      if (department && department !== 'ALL') {
         if (
-          faculty.department.toLowerCase() !== filters.department.toLowerCase()
+          faculty.department.toLowerCase() !== department.toLowerCase()
         ) {
           return false;
         }
       }
 
       // 3. Designation filter
-      if (filters.designation && filters.designation !== 'ALL') {
+      if (designation && designation !== 'ALL') {
         if (
           (faculty.designation || '').toLowerCase() !==
-          filters.designation.toLowerCase()
+          designation.toLowerCase()
         ) {
           return false;
         }
       }
 
       // 4. Availability filter
-      if (filters.availability && filters.availability !== 'ALL') {
-        if (faculty.availability_status !== filters.availability) {
+      if (availability && availability !== 'ALL') {
+        if (faculty.availability_status !== availability) {
+          return false;
+        }
+      }
+
+      // 5. Campus location filter
+      if (location && location !== 'ALL') {
+        if (
+          !(faculty.location || '')
+            .toLowerCase()
+            .includes(location.toLowerCase())
+        ) {
           return false;
         }
       }
 
       return true;
+    });
+
+    // 6. Sorting
+    return filtered.slice().sort((a, b) => {
+      if (sortBy === 'available_first') {
+        const statusRank = (status: AvailabilityStatus): number => {
+          switch (status) {
+            case 'AVAILABLE':
+              return 1;
+            case 'IN CLASS':
+              return 2;
+            case 'BUSY':
+              return 3;
+            case 'ON LEAVE':
+              return 4;
+            case 'UNKNOWN':
+            default:
+              return 5;
+          }
+        };
+
+        const rankDiff = statusRank(a.availability_status) - statusRank(b.availability_status);
+        if (rankDiff !== 0) return rankDiff;
+        return a.full_name.localeCompare(b.full_name);
+      }
+
+      if (sortBy === 'recently_updated') {
+        const timeA = a.availability_updated_at
+          ? new Date(a.availability_updated_at).getTime()
+          : 0;
+        const timeB = b.availability_updated_at
+          ? new Date(b.availability_updated_at).getTime()
+          : 0;
+        if (timeA !== timeB) return timeB - timeA; // Most recent first
+        return a.full_name.localeCompare(b.full_name);
+      }
+
+      if (sortBy === 'alphabetical') {
+        return a.full_name.localeCompare(b.full_name);
+      }
+
+      return 0;
     });
   }
 

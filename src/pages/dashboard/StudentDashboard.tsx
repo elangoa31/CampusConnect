@@ -47,6 +47,8 @@ export const StudentDashboard: React.FC = () => {
     department: 'ALL',
     designation: 'ALL',
     availability: 'ALL',
+    location: 'ALL',
+    sortBy: 'available_first',
   });
 
   // Fetch real faculty records from Supabase
@@ -104,10 +106,11 @@ export const StudentDashboard: React.FC = () => {
     return FacultyService.computeStats(facultyList);
   }, [facultyList]);
 
-  // Extract unique departments & designations from real faculty records
-  const { availableDepartments, availableDesignations } = useMemo(() => {
+  // Extract unique departments, designations & campus locations from real faculty records
+  const { availableDepartments, availableDesignations, availableLocations } = useMemo(() => {
     const deptSet = new Set<string>();
     const desigSet = new Set<string>();
+    const locSet = new Set<string>();
 
     facultyList.forEach((f) => {
       if (f.department && f.department.trim()) {
@@ -116,11 +119,15 @@ export const StudentDashboard: React.FC = () => {
       if (f.designation && f.designation.trim()) {
         desigSet.add(f.designation.trim());
       }
+      if (f.location && f.location.trim()) {
+        locSet.add(f.location.trim());
+      }
     });
 
     return {
       availableDepartments: Array.from(deptSet).sort(),
       availableDesignations: Array.from(desigSet).sort(),
+      availableLocations: Array.from(locSet).sort(),
     };
   }, [facultyList]);
 
@@ -131,10 +138,18 @@ export const StudentDashboard: React.FC = () => {
 
   // Quick filter by status card click
   const handleOverviewStatusClick = (status: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      availability: status,
-    }));
+    if (status === 'RECENTLY_UPDATED') {
+      setFilters((prev) => ({
+        ...prev,
+        availability: 'ALL',
+        sortBy: 'recently_updated',
+      }));
+    } else {
+      setFilters((prev) => ({
+        ...prev,
+        availability: status,
+      }));
+    }
     setActiveTab('directory');
     // Smooth scroll down to directory section
     const el = document.getElementById('faculty-directory-section');
@@ -149,6 +164,8 @@ export const StudentDashboard: React.FC = () => {
       department: 'ALL',
       designation: 'ALL',
       availability: 'ALL',
+      location: 'ALL',
+      sortBy: 'available_first',
     });
   };
 
@@ -344,6 +361,7 @@ export const StudentDashboard: React.FC = () => {
             onChange={setFilters}
             departments={availableDepartments}
             designations={availableDesignations}
+            locations={availableLocations}
             totalResults={filteredFaculty.length}
             totalFaculty={facultyList.length}
           />

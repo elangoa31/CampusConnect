@@ -243,6 +243,25 @@ export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Taught Courses / Subjects */}
+        {faculty.subjects && faculty.subjects.length > 0 && (
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
+            <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">
+              Courses & Subjects Taught
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {faculty.subjects.map((sub) => (
+                <span
+                  key={sub}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 shadow-2xs"
+                >
+                  {sub}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Timetable & Schedule Section (Estimated Schedule) */}
         <div className="space-y-2 pt-1 border-t border-slate-100">
           <div className="flex items-center justify-between">

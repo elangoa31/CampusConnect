@@ -75,6 +75,24 @@ export const FacultyCard: React.FC<FacultyCardProps> = ({ faculty, onSelect }) =
               {faculty.location || 'Location not shared'}
             </span>
           </div>
+
+          {/* Availability Message (Requirement 5) */}
+          {faculty.status_message && (
+            <div className="p-2 bg-teal-50/70 rounded-xl border border-teal-100/80 text-[11px] text-teal-900 leading-snug italic truncate">
+              "{faculty.status_message}"
+            </div>
+          )}
+
+          {/* Taught Subjects (if any) */}
+          {faculty.subjects && faculty.subjects.length > 0 && (
+            <div className="flex items-center gap-1 overflow-hidden pt-0.5">
+              <span className="text-[10px] text-slate-400 shrink-0 font-medium">Subjects:</span>
+              <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md truncate">
+                {faculty.subjects.slice(0, 2).join(', ')}
+                {faculty.subjects.length > 2 ? ` +${faculty.subjects.length - 2}` : ''}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

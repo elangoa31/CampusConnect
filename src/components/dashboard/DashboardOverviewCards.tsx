@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, CheckCircle2, Clock, HelpCircle, ArrowRight } from 'lucide-react';
+import { Users, CheckCircle2, Clock, Sparkles, ArrowRight } from 'lucide-react';
 import type { FacultyStats } from '../../types/faculty.types';
 
 interface DashboardOverviewCardsProps {
@@ -45,15 +45,15 @@ export const DashboardOverviewCards: React.FC<DashboardOverviewCardsProps> = ({
       indicatorClass: 'bg-rose-500',
     },
     {
-      title: 'Unknown Status',
-      count: stats.unknown,
-      subtitle: 'Awaiting manual update',
-      icon: HelpCircle,
-      bgColor: 'bg-slate-100/80',
-      iconColor: 'text-slate-600',
-      borderColor: 'border-slate-200/80',
-      statusFilter: 'UNKNOWN',
-      indicatorClass: 'bg-slate-400',
+      title: 'Recently Updated',
+      count: stats.recentlyUpdated ?? 0,
+      subtitle: 'Broadcast within 24h',
+      icon: Sparkles,
+      bgColor: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      borderColor: 'border-amber-100/80',
+      statusFilter: 'RECENTLY_UPDATED',
+      indicatorClass: 'bg-amber-500',
     },
   ];
 
