@@ -262,11 +262,16 @@ export class AuthService {
       const activeUser = userRecord || (await supabase.auth.getUser()).data?.user;
       if (activeUser?.user_metadata && (activeUser.id === userId || !activeUser.id)) {
         const meta = activeUser.user_metadata;
+        const sessionRole = typeof sessionStorage !== 'undefined'
+          ? (sessionStorage.getItem('campusconnect_intended_role') as 'student' | 'staff' | null)
+          : null;
+        const resolvedRole: 'student' | 'staff' = (meta.role as 'student' | 'staff') || sessionRole || 'student';
+
         const fallbackProfile: UserProfile = {
           id: userId,
           email: activeUser.email || '',
           full_name: meta.full_name || 'CampusConnect User',
-          role: (meta.role as 'student' | 'staff') || 'student',
+          role: resolvedRole,
           department: meta.department || 'General',
           register_number: meta.register_number,
           year_of_study: meta.year_of_study,

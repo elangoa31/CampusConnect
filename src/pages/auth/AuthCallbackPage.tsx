@@ -15,6 +15,39 @@ export const AuthCallbackPage: React.FC = () => {
 
   useEffect(() => {
     let isSubscribed = true;
+    let handled = false;
+
+    const navigateForUser = async (activeUser: any) => {
+      if (handled || !isSubscribed) return;
+      handled = true;
+
+      // Identify intended role
+      const paramRole = searchParams.get('role') as UserRole | null;
+      const sessionRole = typeof sessionStorage !== 'undefined'
+        ? (sessionStorage.getItem('campusconnect_intended_role') as UserRole | null)
+        : null;
+      const metaRole = activeUser.user_metadata?.role as UserRole | null;
+
+      const targetRole: UserRole = paramRole || sessionRole || metaRole || 'student';
+      setIntendedRole(targetRole);
+
+      // Retrieve live profile
+      const profile = await AuthService.getCurrentProfile(activeUser.id, activeUser);
+      await refreshProfile();
+
+      const resolvedRole = profile?.role || targetRole;
+
+      if (resolvedRole === 'staff') {
+        navigate('/staff/dashboard', { replace: true });
+      } else {
+        // Student navigation
+        if (!isStudentProfileComplete(profile || activeUser.user_metadata)) {
+          navigate('/student/profile-setup', { replace: true });
+        } else {
+          navigate('/student/dashboard', { replace: true });
+        }
+      }
+    };
 
     const processOAuthCallback = async () => {
       // 1. Check for error in query or hash params
@@ -22,6 +55,16 @@ export const AuthCallbackPage: React.FC = () => {
       if (errorParam) {
         setErrorMessage(decodeURIComponent(errorParam));
         return;
+      }
+
+      // Check hash fragment for errors (e.g. #error=access_denied&error_description=...)
+      if (typeof window !== 'undefined' && window.location.hash.includes('error=')) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hashErr = hashParams.get('error_description') || hashParams.get('error');
+        if (hashErr) {
+          setErrorMessage(decodeURIComponent(hashErr));
+          return;
+        }
       }
 
       if (!isSupabaseConfigured()) {
@@ -37,53 +80,32 @@ export const AuthCallbackPage: React.FC = () => {
           throw sessionError;
         }
 
-        let activeUser = session?.user;
-
-        // If session not ready immediately, wait briefly or listen to onAuthStateChange
-        if (!activeUser) {
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          const { data: { session: retrySession } } = await supabase.auth.getSession();
-          activeUser = retrySession?.user;
+        if (session?.user) {
+          await navigateForUser(session.user);
+          return;
         }
 
-        if (!isSubscribed) return;
-
-        if (activeUser) {
-          // Identify intended role
-          const paramRole = searchParams.get('role') as UserRole | null;
-          const sessionRole = typeof sessionStorage !== 'undefined'
-            ? (sessionStorage.getItem('campusconnect_intended_role') as UserRole | null)
-            : null;
-          const metaRole = activeUser.user_metadata?.role as UserRole | null;
-
-          const targetRole: UserRole = paramRole || sessionRole || metaRole || 'student';
-          setIntendedRole(targetRole);
-
-          // Retrieve live profile
-          const profile = await AuthService.getCurrentProfile(activeUser.id, activeUser);
-          await refreshProfile();
-
-          const resolvedRole = profile?.role || targetRole;
-
-          if (resolvedRole === 'staff') {
-            navigate('/staff/dashboard', { replace: true });
-          } else {
-            // Student navigation
-            if (!isStudentProfileComplete(profile || activeUser.user_metadata)) {
-              navigate('/student/profile-setup', { replace: true });
-            } else {
-              navigate('/student/dashboard', { replace: true });
+        // 3. If session not ready immediately, listen to onAuthStateChange
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, authSession) => {
+            if (authSession?.user && isSubscribed && !handled) {
+              await navigateForUser(authSession.user);
             }
           }
-        } else {
-          // If no session is found after fallback window, return to login
-          const timer = setTimeout(() => {
-            if (isSubscribed) {
+        );
+
+        // Fallback retry after 2s in case onAuthStateChange is delayed
+        setTimeout(async () => {
+          if (!handled && isSubscribed) {
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession?.user) {
+              await navigateForUser(retrySession.user);
+            } else {
               navigate('/login', { replace: true });
             }
-          }, 2000);
-          return () => clearTimeout(timer);
-        }
+          }
+          subscription.unsubscribe();
+        }, 2000);
       } catch (err: any) {
         if (isSubscribed) {
           setErrorMessage(err?.message || 'Failed to complete OAuth authentication.');
