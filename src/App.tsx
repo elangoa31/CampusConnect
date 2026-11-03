@@ -7,7 +7,7 @@ import { SignupPage } from './pages/auth/SignupPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { StudentProfileSetupPage } from './pages/profile/StudentProfileSetupPage';
-import { StudentDashboardPlaceholder } from './pages/dashboard/StudentDashboardPlaceholder';
+import { StudentDashboard } from './pages/dashboard/StudentDashboard';
 import { StaffDashboardPlaceholder } from './pages/dashboard/StaffDashboardPlaceholder';
 
 export const App: React.FC = () => {
@@ -33,12 +33,12 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* Protected Dashboard Placeholders (Phase 2 Preview) */}
+          {/* Protected Student Dashboard */}
           <Route
             path="/student/dashboard"
             element={
               <ProtectedRoute allowedRole="student">
-                <StudentDashboardPlaceholder />
+                <StudentDashboard />
               </ProtectedRoute>
             }
           />

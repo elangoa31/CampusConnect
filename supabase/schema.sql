@@ -18,14 +18,28 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   employee_id TEXT,
   designation TEXT,
   
+  -- Availability & Location Tracking (Phase 3)
+  availability_status TEXT DEFAULT 'UNKNOWN' CHECK (availability_status IN ('AVAILABLE', 'BUSY', 'IN CLASS', 'ON LEAVE', 'UNKNOWN')),
+  location TEXT,
+  avatar_url TEXT,
+  availability_updated_at TIMESTAMPTZ,
+  
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Index for fast lookup by role, department, or email
+-- Extensions for existing databases
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS availability_status TEXT DEFAULT 'UNKNOWN';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS availability_updated_at TIMESTAMPTZ;
+
+-- Index for fast lookup by role, department, email, or availability
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_department ON public.profiles(department);
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_availability ON public.profiles(availability_status);
+CREATE INDEX IF NOT EXISTS idx_profiles_staff_lookup ON public.profiles(role, availability_status);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
