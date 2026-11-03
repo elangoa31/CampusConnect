@@ -6,6 +6,7 @@ import type {
   LoginFormData,
   SignupFormData,
   UserProfile,
+  UserRole,
 } from '../types/auth.types';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -14,13 +15,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(() => isConfigured);
   const [error, setError] = useState<string | null>(null);
+  const [intendedRole, setIntendedRoleState] = useState<UserRole | null>(() => {
+    const saved = sessionStorage.getItem('campusconnect_intended_role');
+    return (saved === 'student' || saved === 'staff') ? saved : null;
+  });
+
+  const setIntendedRole = (role: UserRole | null) => {
+    setIntendedRoleState(role);
+    if (role) {
+      sessionStorage.setItem('campusconnect_intended_role', role);
+    } else {
+      sessionStorage.removeItem('campusconnect_intended_role');
+    }
+  };
 
   const loadUserProfile = async (userId: string) => {
     try {
       const prof = await AuthService.getCurrentProfile(userId);
       setProfile(prof);
+      return prof;
     } catch (err: any) {
       console.warn('Failed to load profile:', err.message);
+      return null;
     }
   };
 
@@ -62,13 +78,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isConfigured]);
 
-  const login = async (data: LoginFormData) => {
+  const login = async (data: LoginFormData, expectedRole?: UserRole): Promise<UserProfile | null> => {
     setError(null);
     setIsLoading(true);
     try {
-      const result = await AuthService.signInWithEmail(data);
+      const result = await AuthService.signInWithEmail(data, expectedRole);
       setUser(result.user);
       setProfile(result.profile);
+      return result.profile;
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
       throw err;
@@ -106,10 +123,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (roleOverride?: UserRole) => {
     setError(null);
     try {
-      await AuthService.signInWithGoogle();
+      await AuthService.signInWithGoogle(roleOverride || intendedRole || undefined);
     } catch (err: any) {
       setError(err.message || 'Google sign-in could not be initiated.');
       throw err;
@@ -138,6 +155,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isConfigured,
         error,
         setError,
+        intendedRole,
+        setIntendedRole,
         login,
         signup,
         resetPassword,

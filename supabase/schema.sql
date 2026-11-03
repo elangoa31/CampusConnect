@@ -49,13 +49,16 @@ FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = id);
 
--- Users can only update their own profile
-CREATE POLICY "Users can update their own profile"
+-- Users can only update their own profile, but CANNOT change their role column
+CREATE POLICY "Users can update their own profile without escalating role"
 ON public.profiles
 FOR UPDATE
 TO authenticated
 USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
+WITH CHECK (
+  auth.uid() = id AND 
+  role = (SELECT p.role FROM public.profiles p WHERE p.id = auth.uid())
+);
 
 -- 3. Automatic Profile Creation Trigger via auth.users
 -- This handles profile creation automatically from user_metadata supplied at signUp

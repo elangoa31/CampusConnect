@@ -3,13 +3,17 @@ import type {
   LoginFormData,
   SignupFormData,
   UserProfile,
+  UserRole,
 } from '../types/auth.types';
 
 export class AuthService {
   /**
-   * Sign in using college email and password
+   * Sign in using college email and password with role verification
    */
-  static async signInWithEmail(data: LoginFormData): Promise<{
+  static async signInWithEmail(
+    data: LoginFormData,
+    expectedRole?: UserRole
+  ): Promise<{
     user: any;
     session: any;
     profile: UserProfile | null;
@@ -33,8 +37,18 @@ export class AuthService {
       throw new Error('Authentication succeeded but user record was not returned.');
     }
 
-    // Retrieve the user profile
+    // Retrieve the user profile from database
     const profile = await this.getCurrentProfile(authData.user.id);
+
+    // Verify role matches selected portal
+    if (expectedRole && profile && profile.role !== expectedRole) {
+      await supabase.auth.signOut();
+      const actualLabel = profile.role === 'student' ? 'Student' : 'Faculty / Staff';
+      const expectedLabel = expectedRole === 'student' ? 'Student' : 'Faculty / Staff';
+      throw new Error(
+        `Role mismatch: This account is registered as ${actualLabel}. You cannot sign in through the ${expectedLabel} portal. Please sign in via the ${actualLabel} portal.`
+      );
+    }
 
     return {
       user: authData.user,
@@ -44,7 +58,7 @@ export class AuthService {
   }
 
   /**
-   * Register a new Student or Staff account
+   * Register a new Student or Staff account with validation
    */
   static async signUpWithEmail(data: SignupFormData): Promise<{
     user: any;
@@ -56,6 +70,16 @@ export class AuthService {
       throw new Error(
         'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
       );
+    }
+
+    // Restrict staff registration to verified faculty code
+    if (data.role === 'staff') {
+      const expectedStaffCode = import.meta.env.VITE_STAFF_VERIFICATION_CODE || 'FACULTY2026';
+      if (!data.verificationCode || data.verificationCode.trim() !== expectedStaffCode) {
+        throw new Error(
+          'Staff registration requires a valid Faculty Verification Code issued by your college administrator.'
+        );
+      }
     }
 
     // Pass role and custom attributes into raw_user_meta_data
@@ -78,7 +102,7 @@ export class AuthService {
       password: data.password,
       options: {
         data: metaData,
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${window.location.origin}/login?role=${data.role}`,
       },
     });
 
@@ -161,17 +185,19 @@ export class AuthService {
   /**
    * Sign in with Google OAuth using Supabase
    */
-  static async signInWithGoogle(): Promise<void> {
+  static async signInWithGoogle(intendedRole?: UserRole): Promise<void> {
     if (!isSupabaseConfigured()) {
       throw new Error(
         'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
       );
     }
 
+    const redirectPath = intendedRole ? `/login?role=${intendedRole}` : '/login';
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}${redirectPath}`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

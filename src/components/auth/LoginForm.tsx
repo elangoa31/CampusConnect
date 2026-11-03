@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Mail, Loader2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Loader2, GraduationCap, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { AuthInput } from './AuthInput';
 import { PasswordInput } from './PasswordInput';
-import type { LoginFormData, AuthValidationErrors } from '../../types/auth.types';
+import type { LoginFormData, AuthValidationErrors, UserRole } from '../../types/auth.types';
 import { validateLoginForm } from '../../utils/validation';
 
 export const LoginForm: React.FC = () => {
-  const { login, signInWithGoogle, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { login, signInWithGoogle, isLoading, intendedRole, setIntendedRole } = useAuth();
+
+  // Determine portal role from query param or auth state
+  const roleQuery = searchParams.get('role');
+  const activePortalRole: UserRole = (roleQuery === 'student' || roleQuery === 'staff')
+    ? roleQuery
+    : (intendedRole || 'student');
 
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
@@ -36,7 +44,15 @@ export const LoginForm: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await login(formData);
+      // Login with strict server database role verification
+      const verifiedProfile = await login(formData, activePortalRole);
+      
+      // Navigate to respective dashboard placeholder
+      if (verifiedProfile?.role === 'staff') {
+        navigate('/staff/dashboard');
+      } else {
+        navigate('/student/dashboard');
+      }
     } catch {
       // Error handled by AuthContext
     } finally {
@@ -46,7 +62,7 @@ export const LoginForm: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(activePortalRole);
     } catch {
       // Error handled by AuthContext
     }
@@ -54,6 +70,25 @@ export const LoginForm: React.FC = () => {
 
   return (
     <div className="w-full">
+      {/* Portal Role Indicator */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-teal-50 text-[#0d5c58] border border-teal-200/60 shadow-sm">
+          {activePortalRole === 'student' ? (
+            <GraduationCap className="w-3.5 h-3.5 text-[#0d5c58]" />
+          ) : (
+            <Briefcase className="w-3.5 h-3.5 text-[#0d5c58]" />
+          )}
+          <span>{activePortalRole === 'student' ? 'Student Portal' : 'Faculty Portal'}</span>
+        </span>
+        <Link
+          to="/"
+          onClick={() => setIntendedRole(null)}
+          className="text-[11px] text-slate-500 hover:text-[#0d5c58] hover:underline font-medium transition-colors"
+        >
+          Change role
+        </Link>
+      </div>
+
       {/* Header */}
       <div className="mb-6 text-left">
         <h2 className="text-2xl font-bold tracking-tight text-[#0f172a] uppercase">
@@ -106,7 +141,7 @@ export const LoginForm: React.FC = () => {
           </label>
 
           <Link
-            to="/forgot-password"
+            to={`/forgot-password?role=${activePortalRole}`}
             className="text-xs font-medium text-[#0f766e] hover:text-[#115e59] hover:underline transition-colors"
           >
             Forgot password?
@@ -136,7 +171,6 @@ export const LoginForm: React.FC = () => {
           disabled={isLoading || isSubmitting}
           className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-all duration-150 flex items-center justify-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
         >
-          {/* Google Icon SVG */}
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
               fill="#4285F4"
@@ -163,7 +197,7 @@ export const LoginForm: React.FC = () => {
       <div className="mt-6 text-center text-xs text-slate-500">
         Don&apos;t have an account?{' '}
         <Link
-          to="/signup"
+          to={`/signup?role=${activePortalRole}`}
           className="font-semibold text-[#0d5c58] hover:text-[#094340] hover:underline transition-colors"
         >
           Sign up

@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { User, Mail, Building2, Hash, BookOpen, Briefcase, BadgeCheck, Loader2, CheckCircle2 } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  User,
+  Mail,
+  Building2,
+  Hash,
+  BookOpen,
+  Briefcase,
+  BadgeCheck,
+  KeyRound,
+  Loader2,
+  CheckCircle2,
+} from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { RoleSelector } from './RoleSelector';
 import { AuthInput } from './AuthInput';
@@ -9,17 +20,24 @@ import type { SignupFormData, AuthValidationErrors, UserRole } from '../../types
 import { validateSignupForm } from '../../utils/validation';
 
 export const SignupForm: React.FC = () => {
-  const { signup, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { signup, isLoading, intendedRole, setIntendedRole } = useAuth();
+
+  const roleQuery = searchParams.get('role');
+  const initialRole: UserRole = (roleQuery === 'student' || roleQuery === 'staff')
+    ? roleQuery
+    : (intendedRole || 'student');
 
   const [formData, setFormData] = useState<SignupFormData>({
     fullName: '',
     email: '',
-    role: 'student',
+    role: initialRole,
     department: '',
     registerNumber: '',
     yearOfStudy: '',
     employeeId: '',
     designation: '',
+    verificationCode: '',
     password: '',
     confirmPassword: '',
   });
@@ -30,6 +48,7 @@ export const SignupForm: React.FC = () => {
 
   const handleRoleChange = (role: UserRole) => {
     setFormData((prev) => ({ ...prev, role }));
+    setIntendedRole(role);
     // Clear role-specific errors
     setErrors((prev) => {
       const newErrors = { ...prev };
@@ -38,6 +57,7 @@ export const SignupForm: React.FC = () => {
       delete newErrors.yearOfStudy;
       delete newErrors.employeeId;
       delete newErrors.designation;
+      delete newErrors.verificationCode;
       return newErrors;
     });
   };
@@ -79,7 +99,8 @@ export const SignupForm: React.FC = () => {
             REGISTRATION COMPLETE
           </h2>
           <p className="text-xs text-slate-600 max-w-xs mx-auto">
-            Your {formData.role} account has been created for <span className="font-semibold text-slate-800">{formData.email}</span>.
+            Your {formData.role === 'staff' ? 'Faculty' : 'Student'} account has been created for{' '}
+            <span className="font-semibold text-slate-800">{formData.email}</span>.
           </p>
         </div>
         <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs space-y-1 text-slate-600">
@@ -102,7 +123,7 @@ export const SignupForm: React.FC = () => {
           Please check your inbox if email confirmation is required by your institution.
         </p>
         <Link
-          to="/login"
+          to={`/login?role=${formData.role}`}
           className="inline-block w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 text-center"
         >
           Sign in to your account
@@ -262,6 +283,19 @@ export const SignupForm: React.FC = () => {
                 <p className="text-xs text-red-500 font-medium">{errors.designation}</p>
               )}
             </div>
+
+            {/* Staff Verification Code (Restricting Staff Privileges) */}
+            <AuthInput
+              label="Faculty Verification Code"
+              type="password"
+              placeholder="Enter institutional verification code"
+              value={formData.verificationCode || ''}
+              onChange={(e) => handleChange('verificationCode', e.target.value)}
+              error={errors.verificationCode}
+              helperText="Faculty registration requires an institutional passkey issued by college administration."
+              leftIcon={<KeyRound className="w-4 h-4" />}
+              disabled={isLoading || isSubmitting}
+            />
           </div>
         )}
 
@@ -309,7 +343,7 @@ export const SignupForm: React.FC = () => {
       <div className="mt-4 text-center text-xs text-slate-500">
         Already have an account?{' '}
         <Link
-          to="/login"
+          to={`/login?role=${formData.role}`}
           className="font-semibold text-[#0d5c58] hover:text-[#094340] hover:underline transition-colors"
         >
           Sign in

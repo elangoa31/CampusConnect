@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Mail, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { AuthInput } from './AuthInput';
@@ -7,7 +7,11 @@ import type { ForgotPasswordFormData, AuthValidationErrors } from '../../types/a
 import { validateForgotPasswordForm } from '../../utils/validation';
 
 export const ForgotPasswordForm: React.FC = () => {
-  const { resetPassword, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { resetPassword, isLoading, intendedRole } = useAuth();
+  const roleQuery = searchParams.get('role');
+  const activeRole = roleQuery || intendedRole || 'student';
+  const loginLink = `/login?role=${activeRole}`;
 
   const [formData, setFormData] = useState<ForgotPasswordFormData>({
     email: '',
@@ -75,7 +79,7 @@ export const ForgotPasswordForm: React.FC = () => {
               Didn&apos;t receive it? Try another email
             </button>
             <Link
-              to="/login"
+              to={loginLink}
               className="w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 text-center"
             >
               Back to sign in
@@ -116,7 +120,7 @@ export const ForgotPasswordForm: React.FC = () => {
 
           <div className="pt-2 text-center">
             <Link
-              to="/login"
+              to={loginLink}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0d5c58] hover:text-[#094340] hover:underline transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />

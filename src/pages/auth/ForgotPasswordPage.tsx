@@ -2,7 +2,7 @@ import React from 'react';
 import { AuthLayout } from '../../components/auth/AuthLayout';
 import { ForgotPasswordForm } from '../../components/auth/ForgotPasswordForm';
 import { AuthSuccessView } from '../../components/auth/AuthSuccessView';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 export const ForgotPasswordPage: React.FC = () => {
   const { user } = useAuth();
