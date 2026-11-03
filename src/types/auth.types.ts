@@ -63,3 +63,13 @@ export interface PasswordStrength {
   hasNumber: boolean;
   hasSpecialChar: boolean;
 }
+
+export interface OAuthSessionResult {
+  profile: UserProfile | null;
+  roleMismatch: boolean;
+  actualRole?: UserRole;
+  expectedRole?: UserRole;
+  isNewUser: boolean;
+  error?: string;
+}
+

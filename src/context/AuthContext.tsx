@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import { AuthService } from '../services/auth.service';
+import { AuthService, INTENDED_ROLE_STORAGE_KEY } from '../services/auth.service';
 import { AuthContext } from './auth-context-base';
 import type {
   LoginFormData,
@@ -16,16 +16,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(() => isConfigured);
   const [error, setError] = useState<string | null>(null);
   const [intendedRole, setIntendedRoleState] = useState<UserRole | null>(() => {
-    const saved = sessionStorage.getItem('campusconnect_intended_role');
-    return (saved === 'student' || saved === 'staff') ? saved : null;
+    try {
+      const savedSession = typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem(INTENDED_ROLE_STORAGE_KEY)
+        : null;
+      if (savedSession === 'student' || savedSession === 'staff') return savedSession;
+
+      const savedLocal = typeof localStorage !== 'undefined'
+        ? localStorage.getItem(INTENDED_ROLE_STORAGE_KEY)
+        : null;
+      if (savedLocal === 'student' || savedLocal === 'staff') return savedLocal;
+    } catch {
+      // Ignore storage errors
+    }
+    return null;
   });
 
   const setIntendedRole = (role: UserRole | null) => {
     setIntendedRoleState(role);
-    if (role) {
-      sessionStorage.setItem('campusconnect_intended_role', role);
-    } else {
-      sessionStorage.removeItem('campusconnect_intended_role');
+    try {
+      if (role) {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(INTENDED_ROLE_STORAGE_KEY, role);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(INTENDED_ROLE_STORAGE_KEY, role);
+        }
+      } else {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(INTENDED_ROLE_STORAGE_KEY);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(INTENDED_ROLE_STORAGE_KEY);
+        }
+      }
+    } catch {
+      // Ignore storage errors
     }
   };
 

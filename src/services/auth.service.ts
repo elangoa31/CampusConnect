@@ -5,7 +5,10 @@ import type {
   SignupFormData,
   UserProfile,
   UserRole,
+  OAuthSessionResult,
 } from '../types/auth.types';
+
+export const INTENDED_ROLE_STORAGE_KEY = 'campusconnect_intended_role';
 
 export class AuthService {
   /**
@@ -207,6 +210,7 @@ export class AuthService {
 
   /**
    * Sign in with Google OAuth using Supabase
+   * Preserves the selected portal role in URL query and browser storage across redirects
    */
   static async signInWithGoogle(intendedRole?: UserRole): Promise<void> {
     if (!isSupabaseConfigured()) {
@@ -215,8 +219,13 @@ export class AuthService {
       );
     }
 
-    if (intendedRole && typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem('campusconnect_intended_role', intendedRole);
+    if (intendedRole) {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(INTENDED_ROLE_STORAGE_KEY, intendedRole);
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(INTENDED_ROLE_STORAGE_KEY, intendedRole);
+      }
     }
 
     const redirectPath = intendedRole
@@ -242,9 +251,10 @@ export class AuthService {
   }
 
   /**
-   * Get current authenticated user profile
+   * Read the authoritative user profile directly from public.profiles table.
+   * Never fabricates roles or relies on user_metadata.
    */
-  static async getCurrentProfile(userId: string, userRecord?: any): Promise<UserProfile | null> {
+  static async getAuthoritativeProfile(userId: string): Promise<UserProfile | null> {
     if (!isSupabaseConfigured()) return null;
 
     try {
@@ -257,40 +267,6 @@ export class AuthService {
       if (!error && data) {
         return data as UserProfile;
       }
-
-      // Fallback to auth metadata if profile table is not yet provisioned or row not yet inserted
-      const activeUser = userRecord || (await supabase.auth.getUser()).data?.user;
-      if (activeUser?.user_metadata && (activeUser.id === userId || !activeUser.id)) {
-        const meta = activeUser.user_metadata;
-        const sessionRole = typeof sessionStorage !== 'undefined'
-          ? (sessionStorage.getItem('campusconnect_intended_role') as 'student' | 'staff' | null)
-          : null;
-        const resolvedRole: 'student' | 'staff' = (meta.role as 'student' | 'staff') || sessionRole || 'student';
-
-        const fallbackProfile: UserProfile = {
-          id: userId,
-          email: activeUser.email || '',
-          full_name: meta.full_name || 'CampusConnect User',
-          role: resolvedRole,
-          department: meta.department || 'General',
-          register_number: meta.register_number,
-          year_of_study: meta.year_of_study,
-          employee_id: meta.employee_id,
-          designation: meta.designation,
-        };
-
-        // If the table exists but row was missing, try inserting it
-        if (!error && !data) {
-          try {
-            await supabase.from('profiles').insert(fallbackProfile);
-          } catch {
-            // Ignore error
-          }
-        }
-
-        return fallbackProfile;
-      }
-
       return null;
     } catch {
       return null;
@@ -298,7 +274,181 @@ export class AuthService {
   }
 
   /**
+   * Safe OAuth Session Handler and Account Provisioner
+   *
+   * 1. Checks public.profiles for an existing authoritative record.
+   * 2. If user exists:
+   *    - Reads authoritative role from database.
+   *    - NEVER overwrites the existing role.
+   *    - If intendedRole differs from profile.role, signs out and returns roleMismatch: true.
+   * 3. If user is NEW:
+   *    - Creates profile once using intendedRole (defaulting to student).
+   *    - Uses INSERT (never upsert with overwrite) to prevent race condition duplicates.
+   */
+  static async handleOAuthCallbackSession(
+    user: any,
+    intendedRole?: UserRole | null
+  ): Promise<OAuthSessionResult> {
+    if (!user || !user.id) {
+      return {
+        profile: null,
+        roleMismatch: false,
+        isNewUser: false,
+        error: 'No active user found in OAuth session.',
+      };
+    }
+
+    // 1. Fetch authoritative profile from database
+    const existingProfile = await this.getAuthoritativeProfile(user.id);
+
+    if (existingProfile) {
+      // Existing user: check if portal role matches stored database role
+      if (intendedRole && existingProfile.role !== intendedRole) {
+        // Sign out immediately so unauthorized session does not persist
+        await supabase.auth.signOut();
+        return {
+          profile: null,
+          roleMismatch: true,
+          actualRole: existingProfile.role,
+          expectedRole: intendedRole,
+          isNewUser: false,
+        };
+      }
+
+      return {
+        profile: existingProfile,
+        roleMismatch: false,
+        actualRole: existingProfile.role,
+        expectedRole: intendedRole || existingProfile.role,
+        isNewUser: false,
+      };
+    }
+
+    // 2. New Google-authenticated user: provision profile using intended role
+    const targetRole: UserRole = intendedRole || 'student';
+    const fullName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      'CampusConnect User';
+
+    const newProfilePayload = {
+      id: user.id,
+      email: user.email || '',
+      full_name: fullName,
+      role: targetRole,
+      department: 'General',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Use INSERT to guarantee single creation and prevent silent overwriting
+    const { data: insertedData, error: insertError } = await supabase
+      .from('profiles')
+      .insert(newProfilePayload)
+      .select()
+      .maybeSingle();
+
+    if (insertError) {
+      // Handle potential duplicate key race condition (e.g. concurrent trigger)
+      if (
+        insertError.code === '23505' ||
+        insertError.message?.includes('duplicate key') ||
+        insertError.message?.includes('unique constraint')
+      ) {
+        const refetched = await this.getAuthoritativeProfile(user.id);
+        if (refetched) {
+          if (intendedRole && refetched.role !== intendedRole) {
+            await supabase.auth.signOut();
+            return {
+              profile: null,
+              roleMismatch: true,
+              actualRole: refetched.role,
+              expectedRole: intendedRole,
+              isNewUser: false,
+            };
+          }
+          return {
+            profile: refetched,
+            roleMismatch: false,
+            actualRole: refetched.role,
+            expectedRole: intendedRole || refetched.role,
+            isNewUser: false,
+          };
+        }
+      }
+      console.warn('Profile provisioning note:', insertError.message);
+    }
+
+    // Synchronize auth metadata for local token consistency
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          role: targetRole,
+        },
+      });
+    } catch {
+      // Non-fatal
+    }
+
+    const finalProfile: UserProfile = (insertedData as UserProfile) || {
+      id: user.id,
+      email: user.email || '',
+      full_name: fullName,
+      role: targetRole,
+      department: 'General',
+    };
+
+    return {
+      profile: finalProfile,
+      roleMismatch: false,
+      actualRole: targetRole,
+      expectedRole: targetRole,
+      isNewUser: true,
+    };
+  }
+
+  /**
+   * Get current authenticated user profile
+   */
+  static async getCurrentProfile(userId: string, userRecord?: any): Promise<UserProfile | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    // 1. Check authoritative database table first
+    const dbProfile = await this.getAuthoritativeProfile(userId);
+    if (dbProfile) {
+      return dbProfile;
+    }
+
+    // 2. Fallback to auth metadata if database row is not yet provisioned
+    const activeUser = userRecord || (await supabase.auth.getUser()).data?.user;
+    if (activeUser?.user_metadata && (activeUser.id === userId || !activeUser.id)) {
+      const meta = activeUser.user_metadata;
+      const sessionRole = typeof sessionStorage !== 'undefined'
+        ? (sessionStorage.getItem(INTENDED_ROLE_STORAGE_KEY) as 'student' | 'staff' | null)
+        : null;
+      const resolvedRole: 'student' | 'staff' = (meta.role as 'student' | 'staff') || sessionRole || 'student';
+
+      return {
+        id: userId,
+        email: activeUser.email || '',
+        full_name: meta.full_name || 'CampusConnect User',
+        role: resolvedRole,
+        department: meta.department || 'General',
+        register_number: meta.register_number,
+        year_of_study: meta.year_of_study,
+        employee_id: meta.employee_id,
+        designation: meta.designation,
+      };
+    }
+
+    return null;
+  }
+
+  /**
    * Save or update Student profile information in Supabase
+   * Strictly verifies student role and never modifies the role column.
    */
   static async updateStudentProfile(
     userId: string,
@@ -315,42 +465,52 @@ export class AuthService {
       );
     }
 
-    const { data: userData } = await supabase.auth.getUser();
-    const currentEmail = userData?.user?.email || '';
+    // Security check: verify that user is registered as a student in the database
+    const existing = await this.getAuthoritativeProfile(userId);
+    if (existing && existing.role !== 'student') {
+      throw new Error('Role mismatch: Staff accounts cannot be updated as a student.');
+    }
 
-    const profilePayload = {
-      id: userId,
-      email: currentEmail,
+    const { data: userData } = await supabase.auth.getUser();
+    const currentEmail = userData?.user?.email || existing?.email || '';
+
+    // Update ONLY student fields; NEVER allow modifying 'role' column
+    const updatePayload = {
       full_name: data.fullName.trim(),
-      role: 'student' as const,
       department: data.department.trim(),
       register_number: data.registerNumber.trim(),
       year_of_study: data.yearOfStudy.trim(),
       updated_at: new Date().toISOString(),
     };
 
-    let savedProfile: UserProfile = profilePayload;
+    let savedProfile: UserProfile = {
+      id: userId,
+      email: currentEmail,
+      role: 'student',
+      ...updatePayload,
+    };
     let dbSuccess = false;
 
-    // 1. Try upserting to Supabase public.profiles table
+    // 1. Update public.profiles without modifying role
     try {
-      const { data: upsertData, error: upsertError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('profiles')
-        .upsert(profilePayload, { onConflict: 'id' })
+        .update(updatePayload)
+        .eq('id', userId)
         .select()
         .maybeSingle();
 
-      if (!upsertError && upsertData) {
-        savedProfile = upsertData as UserProfile;
+      if (!updateError && updateData) {
+        savedProfile = updateData as UserProfile;
         dbSuccess = true;
-      } else if (upsertError) {
-        console.warn('Supabase profiles upsert warning:', upsertError.message);
+      } else if (updateError) {
+        console.warn('Supabase profiles update warning:', updateError.message);
       }
     } catch (err: any) {
-      console.warn('Direct database upsert error:', err.message);
+      console.warn('Direct database update error:', err.message);
     }
 
-    // 2. Also synchronize auth user metadata
+    // 2. Synchronize auth user metadata
     try {
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {

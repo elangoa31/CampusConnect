@@ -72,6 +72,26 @@ TO authenticated
 USING (auth.uid() = id)
 WITH CHECK (auth.uid() = id);
 
+-- Prevent Role Escalation or Modification on Existing Profiles
+CREATE OR REPLACE FUNCTION public.prevent_profile_role_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
+    RAISE EXCEPTION 'Role modification is not permitted. Once set, an account role (student/staff) cannot be altered.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_role_change ON public.profiles;
+CREATE TRIGGER trg_prevent_role_change
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_profile_role_change();
+
 -- Table Permissions
 GRANT ALL ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
@@ -86,43 +106,35 @@ AS $$
 DECLARE
   v_role TEXT;
 BEGIN
-  -- Validate role is either 'student' or 'staff'
-  v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'student');
-  IF v_role NOT IN ('student', 'staff') THEN
-    v_role := 'student';
-  END IF;
+  v_role := NEW.raw_user_meta_data->>'role';
 
-  INSERT INTO public.profiles (
-    id,
-    email,
-    full_name,
-    role,
-    department,
-    register_number,
-    year_of_study,
-    employee_id,
-    designation
-  )
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    v_role,
-    COALESCE(NEW.raw_user_meta_data->>'department', 'General'),
-    NEW.raw_user_meta_data->>'register_number',
-    NEW.raw_user_meta_data->>'year_of_study',
-    NEW.raw_user_meta_data->>'employee_id',
-    NEW.raw_user_meta_data->>'designation'
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    full_name = EXCLUDED.full_name,
-    role = EXCLUDED.role,
-    department = EXCLUDED.department,
-    register_number = COALESCE(EXCLUDED.register_number, profiles.register_number),
-    year_of_study = COALESCE(EXCLUDED.year_of_study, profiles.year_of_study),
-    employee_id = COALESCE(EXCLUDED.employee_id, profiles.employee_id),
-    designation = COALESCE(EXCLUDED.designation, profiles.designation),
-    updated_at = timezone('utc'::text, now());
+  -- Only auto-insert if a valid role was explicitly provided in user metadata (e.g. email/password registration)
+  -- For Google OAuth, the secure application callback provisions the profile with the user's intended role
+  IF v_role IN ('student', 'staff') THEN
+    INSERT INTO public.profiles (
+      id,
+      email,
+      full_name,
+      role,
+      department,
+      register_number,
+      year_of_study,
+      employee_id,
+      designation
+    )
+    VALUES (
+      NEW.id,
+      NEW.email,
+      COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+      v_role,
+      COALESCE(NEW.raw_user_meta_data->>'department', 'General'),
+      NEW.raw_user_meta_data->>'register_number',
+      NEW.raw_user_meta_data->>'year_of_study',
+      NEW.raw_user_meta_data->>'employee_id',
+      NEW.raw_user_meta_data->>'designation'
+    )
+    ON CONFLICT (id) DO NOTHING; -- Strictly preserve existing account role
+  END IF;
 
   RETURN NEW;
 END;

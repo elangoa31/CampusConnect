@@ -33,11 +33,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={`/login?role=${allowedRole}`} replace />;
   }
 
-  // Database verified role with session fallback for OAuth flows
-  const sessionRole = typeof sessionStorage !== 'undefined'
-    ? (sessionStorage.getItem('campusconnect_intended_role') as UserRole | null)
-    : null;
-  const actualRole = profile?.role || user?.user_metadata?.role || sessionRole || 'student';
+  // Authoritative database role from public.profiles takes absolute precedence
+  // user_metadata is never trusted as authoritative over the database profile
+  const actualRole = profile?.role || (user?.user_metadata?.role as UserRole | undefined) || 'student';
 
   // Strict role check: Ensure users access the appropriate portal
   if (actualRole !== allowedRole) {
