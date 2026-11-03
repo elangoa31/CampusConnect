@@ -21,6 +21,12 @@ export interface AuthContextType {
   signInWithGoogle: (intendedRole?: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateStudentProfile: (data: {
+    fullName: string;
+    department: string;
+    registerNumber: string;
+    yearOfStudy: string;
+  }) => Promise<UserProfile>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

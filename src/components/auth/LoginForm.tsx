@@ -5,7 +5,7 @@ import { useAuth } from '../../context/useAuth';
 import { AuthInput } from './AuthInput';
 import { PasswordInput } from './PasswordInput';
 import type { LoginFormData, AuthValidationErrors, UserRole } from '../../types/auth.types';
-import { validateLoginForm } from '../../utils/validation';
+import { validateLoginForm, isStudentProfileComplete } from '../../utils/validation';
 
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
@@ -56,9 +56,11 @@ export const LoginForm: React.FC = () => {
       // Login with strict server database role verification
       const verifiedProfile = await login(formData, activePortalRole);
       
-      // Navigate to respective dashboard placeholder
+      // Navigate to respective dashboard placeholder or profile setup
       if (verifiedProfile?.role === 'staff') {
         navigate('/staff/dashboard');
+      } else if (!isStudentProfileComplete(verifiedProfile)) {
+        navigate('/student/profile-setup');
       } else {
         navigate('/student/dashboard');
       }

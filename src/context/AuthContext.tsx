@@ -150,6 +150,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateStudentProfile = async (data: {
+    fullName: string;
+    department: string;
+    registerNumber: string;
+    yearOfStudy: string;
+  }): Promise<UserProfile> => {
+    if (!user?.id) {
+      throw new Error('No authenticated user session found');
+    }
+    setError(null);
+    setIsLoading(true);
+    try {
+      const updated = await AuthService.updateStudentProfile(user.id, data);
+      setProfile(updated);
+      setUser((prev: any) => ({
+        ...prev,
+        user_metadata: {
+          ...prev?.user_metadata,
+          full_name: data.fullName.trim(),
+          role: 'student',
+          department: data.department.trim(),
+          register_number: data.registerNumber.trim(),
+          year_of_study: data.yearOfStudy.trim(),
+        },
+      }));
+      return updated;
+    } catch (err: any) {
+      setError(err.message || 'Failed to update student profile.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -167,6 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signOut,
         refreshProfile,
+        updateStudentProfile,
       }}
     >
       {children}

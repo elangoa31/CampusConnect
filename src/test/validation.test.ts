@@ -5,6 +5,8 @@ import {
   validateLoginForm,
   validateSignupForm,
   validateForgotPasswordForm,
+  isStudentProfileComplete,
+  validateStudentProfileForm,
 } from '../utils/validation';
 
 describe('Validation Utilities', () => {
@@ -152,6 +154,81 @@ describe('Validation Utilities', () => {
     it('validates college email', () => {
       expect(validateForgotPasswordForm({ email: '' }).email).toBeDefined();
       expect(validateForgotPasswordForm({ email: 'valid@college.edu' }).email).toBeUndefined();
+    });
+  });
+
+  describe('isStudentProfileComplete', () => {
+    it('returns false for null or undefined profile', () => {
+      expect(isStudentProfileComplete(null)).toBe(false);
+      expect(isStudentProfileComplete(undefined)).toBe(false);
+    });
+
+    it('returns false when academic fields are missing or default placeholders', () => {
+      // Typical Google OAuth first-login state
+      expect(
+        isStudentProfileComplete({
+          full_name: 'John Doe',
+          email: 'john@college.edu',
+          role: 'student',
+          department: 'General',
+          register_number: null,
+          year_of_study: null,
+        })
+      ).toBe(false);
+
+      expect(
+        isStudentProfileComplete({
+          full_name: 'John Doe',
+          email: 'john@college.edu',
+          role: 'student',
+          department: 'Computer Science',
+          register_number: 'N/A',
+          year_of_study: 'N/A',
+        })
+      ).toBe(false);
+    });
+
+    it('returns true when all student fields are validly filled', () => {
+      expect(
+        isStudentProfileComplete({
+          full_name: 'John Doe',
+          email: 'john@college.edu',
+          role: 'student',
+          department: 'Computer Science & Engineering',
+          register_number: '717821F101',
+          year_of_study: '3rd Year',
+        })
+      ).toBe(true);
+    });
+  });
+
+  describe('validateStudentProfileForm', () => {
+    it('detects missing fields in student profile setup', () => {
+      const errors = validateStudentProfileForm({
+        fullName: '',
+        email: '',
+        department: '',
+        registerNumber: '',
+        yearOfStudy: '',
+      });
+
+      expect(errors.fullName).toBeDefined();
+      expect(errors.email).toBeDefined();
+      expect(errors.department).toBeDefined();
+      expect(errors.registerNumber).toBeDefined();
+      expect(errors.yearOfStudy).toBeDefined();
+    });
+
+    it('passes for complete valid student profile data', () => {
+      const errors = validateStudentProfileForm({
+        fullName: 'Jane Doe',
+        email: 'jane@college.edu',
+        department: 'Information Technology',
+        registerNumber: 'IT-2026-042',
+        yearOfStudy: '2nd Year',
+      });
+
+      expect(Object.keys(errors)).toHaveLength(0);
     });
   });
 });

@@ -6,6 +6,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { StudentProfileSetupPage } from './pages/profile/StudentProfileSetupPage';
 import { StudentDashboardPlaceholder } from './pages/dashboard/StudentDashboardPlaceholder';
 import { StaffDashboardPlaceholder } from './pages/dashboard/StaffDashboardPlaceholder';
 
@@ -21,6 +22,16 @@ export const App: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+          {/* Student Profile Setup & Edit */}
+          <Route
+            path="/student/profile-setup"
+            element={
+              <ProtectedRoute allowedRole="student">
+                <StudentProfileSetupPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected Dashboard Placeholders (Phase 2 Preview) */}
           <Route

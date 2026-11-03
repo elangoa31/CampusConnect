@@ -4,6 +4,8 @@ import type {
   LoginFormData,
   PasswordStrength,
   SignupFormData,
+  StudentProfileFormData,
+  UserProfile,
 } from '../types/auth.types';
 
 export const validateEmail = (email: string): string | null => {
@@ -129,5 +131,61 @@ export const validateForgotPasswordForm = (
   const errors: AuthValidationErrors = {};
   const emailError = validateEmail(data.email);
   if (emailError) errors.email = emailError;
+  return errors;
+};
+
+export const isStudentProfileComplete = (
+  profile?: Partial<UserProfile> | null
+): boolean => {
+  if (!profile) return false;
+
+  const dept = profile.department?.trim();
+  const reg = profile.register_number?.trim();
+  const year = profile.year_of_study?.trim();
+
+  const isDeptValid = Boolean(
+    dept && dept !== '' && dept !== 'General' && dept !== 'Not specified' && dept !== 'N/A'
+  );
+  const isRegValid = Boolean(reg && reg !== '' && reg !== 'N/A');
+  const isYearValid = Boolean(year && year !== '' && year !== 'N/A');
+
+  return isDeptValid && isRegValid && isYearValid;
+};
+
+export const validateStudentProfileForm = (
+  data: Partial<StudentProfileFormData>
+): AuthValidationErrors => {
+  const errors: AuthValidationErrors = {};
+
+  if (!data.fullName || data.fullName.trim().length < 2) {
+    errors.fullName = 'Full name is required (min 2 characters)';
+  }
+
+  const emailError = validateEmail(data.email || '');
+  if (emailError) {
+    errors.email = emailError;
+  }
+
+  if (!data.department || data.department.trim() === '') {
+    errors.department = 'Department is required';
+  }
+
+  if (!data.registerNumber || data.registerNumber.trim() === '') {
+    errors.registerNumber = 'Register number is required';
+  } else if (data.registerNumber.trim().length < 3) {
+    errors.registerNumber = 'Please enter a valid register number';
+  }
+
+  const allowedYears = [
+    '1st Year',
+    '2nd Year',
+    '3rd Year',
+    '4th Year',
+    'Postgraduate',
+  ];
+  if (!data.yearOfStudy || !allowedYears.includes(data.yearOfStudy)) {
+    errors.yearOfStudy = 'Please select a valid year of study';
+  }
+
   return errors;
 };

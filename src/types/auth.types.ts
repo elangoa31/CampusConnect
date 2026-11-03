@@ -42,6 +42,14 @@ export interface ForgotPasswordFormData {
   email: string;
 }
 
+export interface StudentProfileFormData {
+  fullName: string;
+  email: string;
+  department: string;
+  registerNumber: string;
+  yearOfStudy: string;
+}
+
 export interface AuthValidationErrors {
   [key: string]: string | undefined;
 }

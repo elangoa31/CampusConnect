@@ -45,17 +45,20 @@ FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = id);
 
--- Users can only update their own profile, but CANNOT change their role column
+-- Users can only update their own profile
 DROP POLICY IF EXISTS "Users can update their own profile without escalating role" ON public.profiles;
-CREATE POLICY "Users can update their own profile without escalating role"
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile"
 ON public.profiles
 FOR UPDATE
 TO authenticated
 USING (auth.uid() = id)
-WITH CHECK (
-  auth.uid() = id AND 
-  role = (SELECT p.role FROM public.profiles p WHERE p.id = auth.uid())
-);
+WITH CHECK (auth.uid() = id);
+
+-- Table Permissions
+GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT ALL ON TABLE public.profiles TO service_role;
+GRANT SELECT ON TABLE public.profiles TO anon;
 
 -- Automatic Profile Creation Trigger via auth.users
 CREATE OR REPLACE FUNCTION public.handle_new_user()

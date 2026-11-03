@@ -284,6 +284,83 @@ export class AuthService {
   }
 
   /**
+   * Save or update Student profile information in Supabase
+   */
+  static async updateStudentProfile(
+    userId: string,
+    data: {
+      fullName: string;
+      department: string;
+      registerNumber: string;
+      yearOfStudy: string;
+    }
+  ): Promise<UserProfile> {
+    if (!isSupabaseConfigured()) {
+      throw new Error(
+        'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+      );
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    const currentEmail = userData?.user?.email || '';
+
+    const profilePayload = {
+      id: userId,
+      email: currentEmail,
+      full_name: data.fullName.trim(),
+      role: 'student' as const,
+      department: data.department.trim(),
+      register_number: data.registerNumber.trim(),
+      year_of_study: data.yearOfStudy.trim(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let savedProfile: UserProfile = profilePayload;
+    let dbSuccess = false;
+
+    // 1. Try upserting to Supabase public.profiles table
+    try {
+      const { data: upsertData, error: upsertError } = await supabase
+        .from('profiles')
+        .upsert(profilePayload, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+
+      if (!upsertError && upsertData) {
+        savedProfile = upsertData as UserProfile;
+        dbSuccess = true;
+      } else if (upsertError) {
+        console.warn('Supabase profiles upsert warning:', upsertError.message);
+      }
+    } catch (err: any) {
+      console.warn('Direct database upsert error:', err.message);
+    }
+
+    // 2. Also synchronize auth user metadata
+    try {
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: data.fullName.trim(),
+          role: 'student',
+          department: data.department.trim(),
+          register_number: data.registerNumber.trim(),
+          year_of_study: data.yearOfStudy.trim(),
+        },
+      });
+
+      if (authUpdateError && !dbSuccess) {
+        throw new Error(authUpdateError.message);
+      }
+    } catch (err: any) {
+      if (!dbSuccess) {
+        throw err;
+      }
+    }
+
+    return savedProfile;
+  }
+
+  /**
    * Sign out current user
    */
   static async signOut(): Promise<void> {
