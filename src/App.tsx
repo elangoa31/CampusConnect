@@ -5,6 +5,7 @@ import { RoleSelectionPage } from './pages/auth/RoleSelectionPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { StudentProfileSetupPage } from './pages/profile/StudentProfileSetupPage';
 import { StudentDashboard } from './pages/dashboard/StudentDashboard';
@@ -22,6 +23,7 @@ export const App: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           {/* Student Profile Setup & Edit */}
           <Route

@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { getAuthRedirectUrl } from '../utils/url';
 import type {
   LoginFormData,
   SignupFormData,
@@ -105,7 +106,7 @@ export class AuthService {
       password: data.password,
       options: {
         data: metaData,
-        emailRedirectTo: `${window.location.origin}/login?role=${data.role}&registered=true`,
+        emailRedirectTo: getAuthRedirectUrl(`/login?role=${data.role}&registered=true`),
       },
     });
 
@@ -196,7 +197,7 @@ export class AuthService {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: getAuthRedirectUrl('/login'),
     });
 
     if (error) {
@@ -214,12 +215,20 @@ export class AuthService {
       );
     }
 
-    const redirectPath = intendedRole ? `/login?role=${intendedRole}` : '/login';
+    if (intendedRole && typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('campusconnect_intended_role', intendedRole);
+    }
+
+    const redirectPath = intendedRole
+      ? `/auth/callback?role=${intendedRole}`
+      : '/auth/callback';
+
+    const redirectTo = getAuthRedirectUrl(redirectPath);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${redirectPath}`,
+        redirectTo,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
