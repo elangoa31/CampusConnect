@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { RoleSelector } from '../components/auth/RoleSelector';
@@ -10,6 +10,14 @@ import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { useState } from 'react';
 import type { UserRole } from '../types/auth.types';
+
+beforeEach(() => {
+  sessionStorage.clear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(

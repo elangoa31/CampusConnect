@@ -99,11 +99,10 @@ describe('Validation Utilities', () => {
 
       expect(errors.employeeId).toBe('Employee ID is required for staff');
       expect(errors.designation).toBe('Designation is required for staff');
-      expect(errors.verificationCode).toBe('Faculty verification code is required for staff registration');
       expect(errors.registerNumber).toBeUndefined();
     });
 
-    it('rejects invalid staff verification code', () => {
+    it('passes for complete valid staff signup', () => {
       const errors = validateSignupForm({
         fullName: 'Dr. Jane Doe',
         email: 'jane@college.edu',
@@ -111,28 +110,10 @@ describe('Validation Utilities', () => {
         department: 'Electronics',
         employeeId: 'EMP100',
         designation: 'Professor',
-        verificationCode: 'WRONG_CODE_999',
         password: 'Password123!',
         confirmPassword: 'Password123!',
       });
 
-      expect(errors.verificationCode).toBe('Invalid faculty verification code. Contact college administration.');
-    });
-
-    it('accepts valid staff verification code', () => {
-      const errors = validateSignupForm({
-        fullName: 'Dr. Jane Doe',
-        email: 'jane@college.edu',
-        role: 'staff',
-        department: 'Electronics',
-        employeeId: 'EMP100',
-        designation: 'Professor',
-        verificationCode: 'FACULTY2026',
-        password: 'Password123!',
-        confirmPassword: 'Password123!',
-      });
-
-      expect(errors.verificationCode).toBeUndefined();
       expect(Object.keys(errors)).toHaveLength(0);
     });
 

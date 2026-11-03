@@ -101,12 +101,6 @@ export const validateSignupForm = (data: SignupFormData): AuthValidationErrors =
     if (!data.designation || data.designation.trim() === '') {
       errors.designation = 'Designation is required for staff';
     }
-    const expectedStaffCode = import.meta.env.VITE_STAFF_VERIFICATION_CODE || 'FACULTY2026';
-    if (!data.verificationCode || data.verificationCode.trim() === '') {
-      errors.verificationCode = 'Faculty verification code is required for staff registration';
-    } else if (data.verificationCode.trim() !== expectedStaffCode) {
-      errors.verificationCode = 'Invalid faculty verification code. Contact college administration.';
-    }
   } else {
     errors.role = 'Invalid role selected. Only Student and Staff are allowed.';
   }

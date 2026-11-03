@@ -151,7 +151,7 @@ export const LoginForm: React.FC = () => {
         {/* Primary Button: Dark teal */}
         <button
           type="submit"
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
           className="w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] active:bg-[#073634] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#0d5c58]/40 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
           {isSubmitting ? (

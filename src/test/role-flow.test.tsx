@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { RoleSelectionPage } from '../pages/auth/RoleSelectionPage';
@@ -7,6 +7,10 @@ import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { StudentDashboardPlaceholder } from '../pages/dashboard/StudentDashboardPlaceholder';
 import { StaffDashboardPlaceholder } from '../pages/dashboard/StaffDashboardPlaceholder';
 import { AuthService } from '../services/auth.service';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('Role Selection & Protected Flow', () => {
   describe('RoleSelectionPage', () => {
@@ -54,9 +58,8 @@ describe('Role Selection & Protected Flow', () => {
 
   describe('Role Verification & Mismatch Security', () => {
     it('rejects login when verified database profile role differs from selected portal', async () => {
-      // Mock isSupabaseConfigured to return true
       const supabaseModule = await import('../lib/supabase');
-      vi.spyOn(supabaseModule, 'isSupabaseConfigured').mockReturnValue(true);
+      const isConfigMock = vi.spyOn(supabaseModule, 'isSupabaseConfigured').mockReturnValue(true);
       vi.spyOn(supabaseModule.supabase.auth, 'signInWithPassword').mockResolvedValue({
         data: {
           user: { id: '123', email: 'student@college.edu' } as any,
@@ -66,7 +69,6 @@ describe('Role Selection & Protected Flow', () => {
       });
       vi.spyOn(supabaseModule.supabase.auth, 'signOut').mockResolvedValue({ error: null });
 
-      // Mock getCurrentProfile to return a student profile
       vi.spyOn(AuthService, 'getCurrentProfile').mockResolvedValue({
         id: '123',
         email: 'student@college.edu',
@@ -75,13 +77,44 @@ describe('Role Selection & Protected Flow', () => {
         department: 'CSE',
       });
 
-      // Attempting to log into staff portal with student account
       await expect(
         AuthService.signInWithEmail(
           { email: 'student@college.edu', password: 'Password123!', rememberMe: false },
           'staff'
         )
       ).rejects.toThrow(/Role mismatch: This account is registered as Student/);
+      isConfigMock.mockRestore();
+    });
+
+    it('allows staff to log in with matching staff portal', async () => {
+      const supabaseModule = await import('../lib/supabase');
+      const isConfigMock = vi.spyOn(supabaseModule, 'isSupabaseConfigured').mockReturnValue(true);
+      vi.spyOn(supabaseModule.supabase.auth, 'signInWithPassword').mockResolvedValue({
+        data: {
+          user: { id: '456', email: 'faculty@college.edu' } as any,
+          session: {} as any,
+        },
+        error: null,
+      });
+
+      vi.spyOn(AuthService, 'getCurrentProfile').mockResolvedValue({
+        id: '456',
+        email: 'faculty@college.edu',
+        full_name: 'Dr. Jane Smith',
+        role: 'staff',
+        department: 'CSE',
+        employee_id: 'EMP-01',
+        designation: 'Professor',
+      });
+
+      const result = await AuthService.signInWithEmail(
+        { email: 'faculty@college.edu', password: 'Password123!', rememberMe: false },
+        'staff'
+      );
+
+      expect(result.profile?.role).toBe('staff');
+      expect(result.user.email).toBe('faculty@college.edu');
+      isConfigMock.mockRestore();
     });
   });
 

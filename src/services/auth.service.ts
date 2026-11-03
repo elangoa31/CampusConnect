@@ -58,7 +58,7 @@ export class AuthService {
   }
 
   /**
-   * Register a new Student or Staff account with validation
+   * Register a new Student or Staff account
    */
   static async signUpWithEmail(data: SignupFormData): Promise<{
     user: any;
@@ -70,16 +70,6 @@ export class AuthService {
       throw new Error(
         'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
       );
-    }
-
-    // Restrict staff registration to verified faculty code
-    if (data.role === 'staff') {
-      const expectedStaffCode = import.meta.env.VITE_STAFF_VERIFICATION_CODE || 'FACULTY2026';
-      if (!data.verificationCode || data.verificationCode.trim() !== expectedStaffCode) {
-        throw new Error(
-          'Staff registration requires a valid Faculty Verification Code issued by your college administrator.'
-        );
-      }
     }
 
     // Pass role and custom attributes into raw_user_meta_data

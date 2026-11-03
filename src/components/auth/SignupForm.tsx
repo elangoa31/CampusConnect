@@ -8,7 +8,6 @@ import {
   BookOpen,
   Briefcase,
   BadgeCheck,
-  KeyRound,
   Loader2,
   CheckCircle2,
 } from 'lucide-react';
@@ -37,7 +36,6 @@ export const SignupForm: React.FC = () => {
     yearOfStudy: '',
     employeeId: '',
     designation: '',
-    verificationCode: '',
     password: '',
     confirmPassword: '',
   });
@@ -49,7 +47,6 @@ export const SignupForm: React.FC = () => {
   const handleRoleChange = (role: UserRole) => {
     setFormData((prev) => ({ ...prev, role }));
     setIntendedRole(role);
-    // Clear role-specific errors
     setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors.role;
@@ -57,7 +54,6 @@ export const SignupForm: React.FC = () => {
       delete newErrors.yearOfStudy;
       delete newErrors.employeeId;
       delete newErrors.designation;
-      delete newErrors.verificationCode;
       return newErrors;
     });
   };
@@ -94,16 +90,18 @@ export const SignupForm: React.FC = () => {
         <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
           <CheckCircle2 className="w-6 h-6" />
         </div>
+
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight text-slate-900 uppercase">
             REGISTRATION COMPLETE
           </h2>
-          <p className="text-xs text-slate-600 max-w-xs mx-auto">
+          <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
             Your {formData.role === 'staff' ? 'Faculty' : 'Student'} account has been created for{' '}
             <span className="font-semibold text-slate-800">{formData.email}</span>.
           </p>
         </div>
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs space-y-1 text-slate-600">
+
+        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs space-y-1.5 text-slate-600">
           <div className="flex justify-between">
             <span className="text-slate-400">Name:</span>
             <span className="font-medium text-slate-800">{formData.fullName}</span>
@@ -119,9 +117,11 @@ export const SignupForm: React.FC = () => {
             <span className="font-medium text-slate-800">{formData.department}</span>
           </div>
         </div>
-        <p className="text-[11px] text-slate-400">
+
+        <p className="text-[11px] text-slate-400 leading-normal max-w-xs mx-auto">
           Please check your inbox if email confirmation is required by your institution.
         </p>
+
         <Link
           to={`/login?role=${formData.role}`}
           className="inline-block w-full py-2.5 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 text-center"
@@ -150,7 +150,7 @@ export const SignupForm: React.FC = () => {
         <RoleSelector
           selectedRole={formData.role}
           onChange={handleRoleChange}
-          disabled={isLoading || isSubmitting}
+          disabled={isSubmitting}
         />
 
         {/* Full Name */}
@@ -179,7 +179,7 @@ export const SignupForm: React.FC = () => {
           disabled={isLoading || isSubmitting}
         />
 
-        {/* Department (Common to both Student & Staff) */}
+        {/* Department */}
         <AuthInput
           label="Department"
           type="text"
@@ -283,19 +283,6 @@ export const SignupForm: React.FC = () => {
                 <p className="text-xs text-red-500 font-medium">{errors.designation}</p>
               )}
             </div>
-
-            {/* Staff Verification Code (Restricting Staff Privileges) */}
-            <AuthInput
-              label="Faculty Verification Code"
-              type="password"
-              placeholder="Enter institutional verification code"
-              value={formData.verificationCode || ''}
-              onChange={(e) => handleChange('verificationCode', e.target.value)}
-              error={errors.verificationCode}
-              helperText="Faculty registration requires an institutional passkey issued by college administration."
-              leftIcon={<KeyRound className="w-4 h-4" />}
-              disabled={isLoading || isSubmitting}
-            />
           </div>
         )}
 

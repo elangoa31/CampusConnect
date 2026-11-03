@@ -33,7 +33,6 @@ export interface SignupFormData {
   // Staff fields
   employeeId?: string;
   designation?: string;
-  verificationCode?: string;
   // Password
   password: string;
   confirmPassword: string;

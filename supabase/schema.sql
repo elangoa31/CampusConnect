@@ -3,9 +3,6 @@
 -- Role Constraints: ONLY 'student' AND 'staff' (NO admin role allowed)
 -- ==============================================================================
 
--- 1. Create custom role enum type if needed or use check constraint
--- We use a check constraint on public.profiles for strict adherence to requirements.
-
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
@@ -33,16 +30,13 @@ CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 2. Row Level Security Policies
-
--- Anyone authenticated can view profiles (needed for discovery in later phases)
+-- Row Level Security Policies
 CREATE POLICY "Public profiles are viewable by authenticated users"
 ON public.profiles
 FOR SELECT
 TO authenticated
 USING (true);
 
--- Users can only insert their own profile
 CREATE POLICY "Users can insert their own profile"
 ON public.profiles
 FOR INSERT
@@ -60,8 +54,7 @@ WITH CHECK (
   role = (SELECT p.role FROM public.profiles p WHERE p.id = auth.uid())
 );
 
--- 3. Automatic Profile Creation Trigger via auth.users
--- This handles profile creation automatically from user_metadata supplied at signUp
+-- Automatic Profile Creation Trigger via auth.users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
