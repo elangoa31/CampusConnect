@@ -189,3 +189,78 @@ export const validateStudentProfileForm = (
 
   return errors;
 };
+
+export const validateStaffProfileForm = (
+  data: {
+    fullName?: string;
+    department?: string;
+    employeeId?: string;
+    designation?: string;
+    email?: string;
+  }
+): AuthValidationErrors => {
+  const errors: AuthValidationErrors = {};
+
+  if (!data.fullName || data.fullName.trim().length < 2) {
+    errors.fullName = 'Full name is required (min 2 characters)';
+  }
+
+  if (!data.department || data.department.trim() === '') {
+    errors.department = 'Department is required';
+  }
+
+  const trimmedId = (data.employeeId || '').trim();
+  if (!trimmedId) {
+    errors.employeeId = 'Employee ID is required';
+  } else if (trimmedId.includes('@') || (data.email && trimmedId.toLowerCase() === data.email.toLowerCase())) {
+    errors.employeeId = 'Employee ID cannot be an email address';
+  } else if (trimmedId.toLowerCase() === 'jane') {
+    errors.employeeId = 'Please enter your real college employee ID';
+  }
+
+  if (!data.designation || data.designation.trim() === '') {
+    errors.designation = 'Designation is required';
+  }
+
+  return errors;
+};
+
+export const validateTimetableEntryForm = (
+  data: {
+    day_of_week?: string;
+    start_time?: string;
+    end_time?: string;
+    subject?: string;
+    classroom?: string;
+    department?: string;
+  }
+): Record<string, string> => {
+  const errors: Record<string, string> = {};
+
+  if (!data.subject || data.subject.trim().length < 2) {
+    errors.subject = 'Subject name is required';
+  }
+
+  if (!data.classroom || data.classroom.trim() === '') {
+    errors.classroom = 'Classroom or Lab location is required';
+  }
+
+  if (!data.department || data.department.trim() === '') {
+    errors.department = 'Department is required';
+  }
+
+  if (!data.start_time) {
+    errors.start_time = 'Start time is required';
+  }
+
+  if (!data.end_time) {
+    errors.end_time = 'End time is required';
+  }
+
+  if (data.start_time && data.end_time && data.start_time >= data.end_time) {
+    errors.end_time = 'End time must be after start time';
+  }
+
+  return errors;
+};
+

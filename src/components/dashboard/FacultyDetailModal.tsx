@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Building2,
@@ -9,8 +9,12 @@ import {
   ExternalLink,
   ShieldCheck,
   IdCard,
+  Calendar,
+  AlertTriangle,
 } from 'lucide-react';
 import type { FacultyMember } from '../../types/faculty.types';
+import type { TimetableEntry } from '../../types/staff.types';
+import { FacultyService } from '../../services/faculty.service';
 import { FacultyStatusBadge } from './FacultyStatusBadge';
 
 interface FacultyDetailModalProps {
@@ -22,6 +26,26 @@ export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
   faculty,
   onClose,
 }) => {
+  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
+  const [loadingTimetable, setLoadingTimetable] = useState<boolean>(Boolean(faculty?.id));
+  const [showSchedule, setShowSchedule] = useState<boolean>(false);
+
+  // Load estimated timetable when modal opens
+  useEffect(() => {
+    let isCurrent = true;
+    if (faculty?.id) {
+      FacultyService.getFacultyTimetable(faculty.id)
+        .then((entries) => {
+          if (isCurrent) setTimetable(entries);
+        })
+        .finally(() => {
+          if (isCurrent) setLoadingTimetable(false);
+        });
+    }
+    return () => {
+      isCurrent = false;
+    };
+  }, [faculty?.id]);
   // ESC key listener to close modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -147,6 +171,29 @@ export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
           </p>
         </div>
 
+        {/* Optional Availability Message & Time Window */}
+        {(faculty.status_message ||
+          (faculty.status_start_time && faculty.status_end_time)) && (
+          <div className="p-3.5 bg-teal-50/80 border border-teal-200/90 rounded-2xl text-xs space-y-1.5">
+            <div className="flex items-center justify-between text-[#0d5c58] font-bold text-[11px] uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Availability Note</span>
+              </span>
+              {faculty.status_start_time && faculty.status_end_time && (
+                <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-semibold">
+                  {faculty.status_start_time} - {faculty.status_end_time}
+                </span>
+              )}
+            </div>
+            {faculty.status_message && (
+              <p className="text-xs text-slate-700 leading-relaxed italic">
+                "{faculty.status_message}"
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Detailed Information Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {/* Department */}
@@ -194,6 +241,76 @@ export const FacultyDetailModal: React.FC<FacultyDetailModalProps> = ({
               Verified Faculty
             </span>
           </div>
+        </div>
+
+        {/* Timetable & Schedule Section (Estimated Schedule) */}
+        <div className="space-y-2 pt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowSchedule(!showSchedule)}
+              className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-[#0d5c58]" />
+              <span>Weekly Timetable ({timetable.length} classes)</span>
+              <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                {showSchedule ? 'Hide' : 'View'}
+              </span>
+            </button>
+          </div>
+
+          {showSchedule && (
+            <div className="space-y-2.5 pt-1 animate-fadeIn">
+              {/* Estimated schedule disclaimer */}
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-tight">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Note:</strong> Timetable reflects an estimated weekly schedule, never confirmed physical presence. Check current availability above.
+                </span>
+              </div>
+
+              {loadingTimetable ? (
+                <div className="text-center py-4 text-xs text-slate-400">
+                  Loading schedule...
+                </div>
+              ) : timetable.length === 0 ? (
+                <div className="text-center py-3 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  No weekly classes posted by this faculty member yet.
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                  {timetable.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/70 text-xs flex items-center justify-between gap-2"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 truncate">
+                            {item.subject}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-200 font-semibold text-slate-700">
+                            {item.classroom}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 block truncate">
+                          {item.department}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-semibold text-teal-800 text-[11px] block">
+                          {item.day_of_week}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {item.start_time} - {item.end_time}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* College Email & Contact */}

@@ -33,6 +33,9 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS availability_status TEXT DE
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS availability_updated_at TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status_message TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status_start_time TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status_end_time TEXT;
 
 -- Index for fast lookup by role, department, email, or availability
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
@@ -130,3 +133,68 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ==============================================================================
+-- CampusConnect - Staff Weekly Timetables (Phase 4)
+-- Note: Timetable information represents an estimated schedule, not confirmed physical availability.
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.staff_timetables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  day_of_week TEXT NOT NULL CHECK (day_of_week IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')),
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  classroom TEXT NOT NULL,
+  department TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_staff_timetables_user ON public.staff_timetables(user_id);
+CREATE INDEX IF NOT EXISTS idx_staff_timetables_day ON public.staff_timetables(day_of_week);
+CREATE INDEX IF NOT EXISTS idx_staff_timetables_lookup ON public.staff_timetables(user_id, day_of_week);
+
+-- Enable RLS for timetables
+ALTER TABLE public.staff_timetables ENABLE ROW LEVEL SECURITY;
+
+-- 1. All authenticated users (including students in faculty discovery) can read timetables
+DROP POLICY IF EXISTS "Timetables are viewable by authenticated users" ON public.staff_timetables;
+CREATE POLICY "Timetables are viewable by authenticated users"
+ON public.staff_timetables
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- 2. Staff can insert their own timetable entries
+DROP POLICY IF EXISTS "Staff can insert their own timetable entries" ON public.staff_timetables;
+CREATE POLICY "Staff can insert their own timetable entries"
+ON public.staff_timetables
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+-- 3. Staff can update their own timetable entries
+DROP POLICY IF EXISTS "Staff can update their own timetable entries" ON public.staff_timetables;
+CREATE POLICY "Staff can update their own timetable entries"
+ON public.staff_timetables
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- 4. Staff can delete their own timetable entries
+DROP POLICY IF EXISTS "Staff can delete their own timetable entries" ON public.staff_timetables;
+CREATE POLICY "Staff can delete their own timetable entries"
+ON public.staff_timetables
+FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
+
+-- Grants
+GRANT ALL ON TABLE public.staff_timetables TO authenticated;
+GRANT ALL ON TABLE public.staff_timetables TO service_role;
+GRANT SELECT ON TABLE public.staff_timetables TO anon;
+

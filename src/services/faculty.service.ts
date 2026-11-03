@@ -5,6 +5,7 @@ import type {
   FacultyFilters,
   FacultyStats,
 } from '../types/faculty.types';
+import type { TimetableEntry } from '../types/staff.types';
 
 export class FacultyService {
   /**
@@ -19,7 +20,7 @@ export class FacultyService {
       const { data, error } = await supabase
         .from('profiles')
         .select(
-          'id, email, full_name, role, department, designation, employee_id, availability_status, location, avatar_url, availability_updated_at, created_at, updated_at'
+          'id, email, full_name, role, department, designation, employee_id, availability_status, location, status_message, status_start_time, status_end_time, avatar_url, availability_updated_at, created_at, updated_at'
         )
         .eq('role', 'staff')
         .order('full_name', { ascending: true });
@@ -58,6 +59,9 @@ export class FacultyService {
           employee_id: item.employee_id || null,
           availability_status,
           location: item.location || null,
+          status_message: item.status_message || null,
+          status_start_time: item.status_start_time || null,
+          status_end_time: item.status_end_time || null,
           avatar_url: item.avatar_url || null,
           availability_updated_at: item.availability_updated_at || item.updated_at || null,
           created_at: item.created_at,
@@ -67,6 +71,63 @@ export class FacultyService {
     } catch (err: any) {
       console.warn('FacultyService.getFacultyList caught error:', err?.message);
       return [];
+    }
+  }
+
+  /**
+   * Fetch weekly estimated timetable for a faculty member
+   */
+  static async getFacultyTimetable(facultyUserId: string): Promise<TimetableEntry[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('staff_timetables')
+        .select('*')
+        .eq('user_id', facultyUserId)
+        .order('day_of_week')
+        .order('start_time');
+
+      if (error) {
+        console.warn('FacultyService.getFacultyTimetable notice:', error.message);
+        return [];
+      }
+
+      return (data || []) as TimetableEntry[];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to Supabase Realtime updates on staff availability
+   */
+  static subscribeToFacultyUpdates(onUpdate: () => void): () => void {
+    if (!isSupabaseConfigured()) {
+      return () => {};
+    }
+
+    try {
+      const channel = supabase
+        .channel('public:profiles:staff_availability')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+          },
+          () => {
+            onUpdate();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      return () => {};
     }
   }
 

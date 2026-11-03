@@ -15,6 +15,9 @@ export interface FacultyMember {
   employee_id?: string | null;
   availability_status: AvailabilityStatus;
   location?: string | null;
+  status_message?: string | null;
+  status_start_time?: string | null;
+  status_end_time?: string | null;
   avatar_url?: string | null;
   availability_updated_at?: string | null;
   created_at?: string;

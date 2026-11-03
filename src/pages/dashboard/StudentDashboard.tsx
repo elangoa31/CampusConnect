@@ -83,8 +83,19 @@ export const StudentDashboard: React.FC = () => {
     };
 
     initialFetch();
+
+    // Realtime subscription: updates when staff updates availability or location
+    const unsubscribe = FacultyService.subscribeToFacultyUpdates(() => {
+      FacultyService.getFacultyList().then((data) => {
+        if (!ignore) {
+          setFacultyList(data);
+        }
+      });
+    });
+
     return () => {
       ignore = true;
+      unsubscribe();
     };
   }, []);
 
