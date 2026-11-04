@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Compass,
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   X,
   Briefcase,
   CalendarCheck,
+  Bell,
 } from 'lucide-react';
 import type { StaffProfile } from '../../types/staff.types';
 
@@ -37,6 +39,7 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
   onOpenEditProfile,
   pendingMeetingsCount = 0,
 }) => {
+  const navigate = useNavigate();
   const staffName = profile?.full_name || 'Faculty Member';
   const initial = staffName.charAt(0).toUpperCase();
 
@@ -53,6 +56,12 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
       icon: CalendarCheck,
       description: 'Student Consultations',
       badge: pendingMeetingsCount,
+    },
+    {
+      id: 'notifications' as const,
+      label: 'Notifications',
+      icon: Bell,
+      description: 'Alerts & Messages',
     },
     {
       id: 'availability' as const,
@@ -74,9 +83,11 @@ export const StaffSidebar: React.FC<StaffSidebarProps> = ({
     },
   ];
 
-  const handleNavClick = (tabId: StaffDashboardTab) => {
+  const handleNavClick = (tabId: StaffDashboardTab | 'notifications') => {
     if (tabId === 'profile') {
       onOpenEditProfile();
+    } else if (tabId === 'notifications') {
+      navigate('/notifications');
     } else {
       onTabChange(tabId);
     }

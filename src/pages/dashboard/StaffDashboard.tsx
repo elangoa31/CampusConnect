@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Menu,
   Clock,
@@ -20,11 +21,24 @@ import { StaffTimetableManager } from '../../components/staff/StaffTimetableMana
 import { StaffEditProfileModal } from '../../components/staff/StaffEditProfileModal';
 import { StaffMeetingRequestsManager } from '../../components/meetings/StaffMeetingRequestsManager';
 import { FacultyStatusBadge } from '../../components/dashboard/FacultyStatusBadge';
+import { NotificationBell } from '../../components/notifications/NotificationBell';
 
 export const StaffDashboard: React.FC = () => {
   const { user, profile: authProfile, signOut } = useAuth();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<StaffDashboardTab>('overview');
+  const [activeTab, setActiveTab] = useState<StaffDashboardTab>(() => {
+    const tabParam = searchParams.get('tab');
+    if (
+      tabParam === 'overview' ||
+      tabParam === 'meetings' ||
+      tabParam === 'availability' ||
+      tabParam === 'timetable'
+    ) {
+      return tabParam as StaffDashboardTab;
+    }
+    return 'overview';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
   const [pendingMeetingsCount, setPendingMeetingsCount] = useState<number>(0);
@@ -193,6 +207,7 @@ export const StaffDashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell onNavigateToMeetings={() => setActiveTab('meetings')} />
             <FacultyStatusBadge
               status={staffProfile?.availability_status || 'UNKNOWN'}
               size="sm"
@@ -230,6 +245,8 @@ export const StaffDashboard: React.FC = () => {
 
               {/* Quick Actions */}
               <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <NotificationBell onNavigateToMeetings={() => setActiveTab('meetings')} />
+
                 <button
                   type="button"
                   onClick={() => setIsEditProfileOpen(true)}

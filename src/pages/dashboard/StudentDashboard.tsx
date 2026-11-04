@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import {
   GraduationCap,
   Sparkles,
@@ -32,9 +32,16 @@ import { MeetingService } from '../../services/meeting.service';
 
 export const StudentDashboard: React.FC = () => {
   const { user, profile, isLoading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'directory' | 'meetings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'directory' | 'meetings'>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'meetings' || tabParam === 'directory' || tabParam === 'overview') {
+      return tabParam;
+    }
+    return 'overview';
+  });
 
   // Faculty Data State
   const [facultyList, setFacultyList] = useState<FacultyMember[]>([]);

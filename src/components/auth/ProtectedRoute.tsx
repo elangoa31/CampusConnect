@@ -5,7 +5,7 @@ import { useAuth } from '../../context/useAuth';
 import type { UserRole } from '../../types/auth.types';
 
 interface ProtectedRouteProps {
-  allowedRole: UserRole;
+  allowedRole?: UserRole | UserRole[];
   children: React.ReactNode;
 }
 
@@ -30,7 +30,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Not logged in -> redirect to login with intended role
   if (!user) {
-    return <Navigate to={`/login?role=${allowedRole}`} replace />;
+    const defaultRole = Array.isArray(allowedRole) ? allowedRole[0] : (allowedRole || 'student');
+    return <Navigate to={`/login?role=${defaultRole}`} replace />;
   }
 
   // Authoritative database role from public.profiles takes absolute precedence
@@ -38,9 +39,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const actualRole = profile?.role || (user?.user_metadata?.role as UserRole | undefined) || 'student';
 
   // Strict role check: Ensure users access the appropriate portal
-  if (actualRole !== allowedRole) {
+  const isRoleAllowed = !allowedRole
+    ? true
+    : Array.isArray(allowedRole)
+    ? allowedRole.includes(actualRole)
+    : actualRole === allowedRole;
+
+  if (!isRoleAllowed) {
     const isStudent = actualRole === 'student';
     const targetDashboard = isStudent ? '/student/dashboard' : '/staff/dashboard';
+    const expectedRoleLabel = Array.isArray(allowedRole) ? allowedRole.join(' or ') : allowedRole;
 
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-950 font-sans">
@@ -57,7 +65,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               Your account is verified in the database as{' '}
               <span className="font-semibold text-slate-900 capitalize">{actualRole}</span>.
               You do not have permission to access the{' '}
-              <span className="font-semibold text-red-600 capitalize">{allowedRole}</span> portal.
+              <span className="font-semibold text-red-600 capitalize">{expectedRoleLabel}</span> portal.
             </p>
           </div>
 

@@ -12,6 +12,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 interface StudentNavbarProps {
   activeTab: 'overview' | 'directory' | 'meetings';
@@ -131,8 +132,10 @@ export const StudentNavbar: React.FC<StudentNavbarProps> = ({
           </nav>
         </div>
 
-        {/* Right Section: User snippet & Sign Out */}
+        {/* Right Section: User snippet, Notifications & Sign Out */}
         <div className="hidden md:flex items-center space-x-3">
+          <NotificationBell onNavigateToMeetings={() => handleNavClick('meetings')} />
+
           <Link
             to="/student/profile-setup?edit=true"
             className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left"
@@ -159,8 +162,10 @@ export const StudentNavbar: React.FC<StudentNavbarProps> = ({
           </button>
         </div>
 
-        {/* Mobile menu button */}
-        <div className="flex md:hidden items-center space-x-2">
+        {/* Mobile menu button and Notification */}
+        <div className="flex md:hidden items-center space-x-1.5">
+          <NotificationBell onNavigateToMeetings={() => handleNavClick('meetings')} />
+
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

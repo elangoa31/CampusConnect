@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { StudentProfileSetupPage } from './pages/profile/StudentProfileSetupPage';
 import { StudentDashboard } from './pages/dashboard/StudentDashboard';
 import { StaffDashboard } from './pages/dashboard/StaffDashboard';
+import { NotificationPage } from './pages/notifications/NotificationPage';
 
 export const App: React.FC = () => {
   return (
@@ -49,6 +50,16 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRole="staff">
                 <StaffDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Notification Center */}
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute allowedRole={['student', 'staff']}>
+                <NotificationPage />
               </ProtectedRoute>
             }
           />
