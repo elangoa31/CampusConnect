@@ -191,7 +191,7 @@ export const SignupForm: React.FC = () => {
           CREATE ACCOUNT
         </h2>
         <p className="text-xs text-slate-500 mt-0.5 font-normal">
-          Join your campus community.
+          Join community.
         </p>
       </div>
 
@@ -265,11 +265,10 @@ export const SignupForm: React.FC = () => {
                   value={formData.yearOfStudy || ''}
                   onChange={(e) => handleChange('yearOfStudy', e.target.value)}
                   disabled={isSubmitting}
-                  className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${
-                    errors.yearOfStudy
-                      ? 'border-red-400 focus:border-red-500'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${errors.yearOfStudy
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-slate-200 hover:border-slate-300'
+                    }`}
                 >
                   <option value="">Select Year of Study</option>
                   <option value="1st Year">1st Year (Freshman)</option>
@@ -312,11 +311,10 @@ export const SignupForm: React.FC = () => {
                   value={formData.designation || ''}
                   onChange={(e) => handleChange('designation', e.target.value)}
                   disabled={isSubmitting}
-                  className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${
-                    errors.designation
-                      ? 'border-red-400 focus:border-red-500'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                  className={`w-full text-sm text-slate-900 bg-white border rounded-xl py-2.5 px-3.5 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20 focus:border-[#0f766e] appearance-none ${errors.designation
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-slate-200 hover:border-slate-300'
+                    }`}
                 >
                   <option value="">Select Designation</option>
                   <option value="Assistant Professor">Assistant Professor</option>
