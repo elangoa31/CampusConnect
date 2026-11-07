@@ -3,6 +3,8 @@
  * Handles environment-aware OAuth and authentication redirect URLs.
  */
 
+import { isNativePlatform } from './platform';
+
 /**
  * Resolves the application base URL in an environment-aware manner:
  * 1. Explicit environment variable: VITE_SITE_URL, VITE_APP_URL, or VITE_PUBLIC_SITE_URL
@@ -53,6 +55,11 @@ export const getAppBaseUrl = (): string => {
  * @returns Fully qualified URL, e.g. 'https://campusconnect.vercel.app/auth/callback'
  */
 export const getAuthRedirectUrl = (path: string = '/auth/callback'): string => {
+  if (isNativePlatform()) {
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const basePath = cleanPath.split('?')[0];
+    return `campusconnect://${basePath}`;
+  }
   const baseUrl = getAppBaseUrl();
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${baseUrl}${cleanPath}`;

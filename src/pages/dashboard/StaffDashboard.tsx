@@ -218,7 +218,7 @@ export const StaffDashboard: React.FC = () => {
         {/* Dashboard Body */}
         <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl w-full mx-auto flex-1">
           {/* Welcome & Quick Action Bar */}
-          <section className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-2xs text-left relative overflow-hidden">
+          <section className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-2xs text-left relative overflow-visible">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">

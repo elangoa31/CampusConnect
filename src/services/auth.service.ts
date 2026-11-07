@@ -1,5 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { getAuthRedirectUrl } from '../utils/url';
+import { isNativePlatform } from '../utils/platform';
+import { Browser } from '@capacitor/browser';
 import type {
   LoginFormData,
   SignupFormData,
@@ -233,6 +235,35 @@ export class AuthService {
       : '/auth/callback';
 
     const redirectTo = getAuthRedirectUrl(redirectPath);
+
+    if (isNativePlatform()) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.url) {
+        await Browser.open({
+          url: data.url,
+          toolbarColor: '#020617',
+          windowName: '_self',
+        });
+      } else {
+        throw new Error('Failed to obtain Google authentication URL.');
+      }
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

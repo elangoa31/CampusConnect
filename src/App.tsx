@@ -7,6 +7,9 @@ import { SignupPage } from './pages/auth/SignupPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { DeepLinkHandler } from './components/auth/DeepLinkHandler';
+import { NativeAppIntegrations } from './components/common/NativeAppIntegrations';
+import { OfflineBanner } from './components/common/OfflineBanner';
 import { StudentProfileSetupPage } from './pages/profile/StudentProfileSetupPage';
 import { StudentDashboard } from './pages/dashboard/StudentDashboard';
 import { StaffDashboard } from './pages/dashboard/StaffDashboard';
@@ -16,6 +19,9 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <NativeAppIntegrations />
+        <DeepLinkHandler />
+        <OfflineBanner />
         <Routes>
           {/* Initial Role Selection Screen */}
           <Route path="/" element={<RoleSelectionPage />} />

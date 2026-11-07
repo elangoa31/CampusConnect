@@ -453,20 +453,11 @@ ON public.notifications
 FOR UPDATE
 TO authenticated
 USING (auth.uid() = recipient_id)
-WITH CHECK (
-  auth.uid() = recipient_id AND
-  recipient_id = (SELECT n.recipient_id FROM public.notifications n WHERE n.id = id)
-);
+WITH CHECK (auth.uid() = recipient_id);
 
--- 3. INSERT: Authenticated users can insert notifications where they are the actor
+-- 3. Direct INSERT by authenticated users is removed to prevent spoofing.
+-- Notifications are created exclusively via trusted SECURITY DEFINER triggers and background jobs.
 DROP POLICY IF EXISTS "Users can insert notifications as actor" ON public.notifications;
-CREATE POLICY "Users can insert notifications as actor"
-ON public.notifications
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  auth.uid() = actor_id AND recipient_id <> auth.uid()
-);
 
 -- 4. DELETE: Users can delete their own notifications
 DROP POLICY IF EXISTS "Users can delete their own notifications" ON public.notifications;
@@ -476,10 +467,67 @@ FOR DELETE
 TO authenticated
 USING (auth.uid() = recipient_id);
 
--- Table Permissions
-GRANT ALL ON TABLE public.notifications TO authenticated;
+-- Table Permissions (Revoke anon & unneeded privileges)
+REVOKE ALL ON TABLE public.notifications FROM anon;
+REVOKE ALL ON TABLE public.notifications FROM public;
+REVOKE INSERT, UPDATE ON TABLE public.notifications FROM authenticated;
+GRANT SELECT, DELETE ON TABLE public.notifications TO authenticated;
+GRANT UPDATE (is_read) ON TABLE public.notifications TO authenticated;
 GRANT ALL ON TABLE public.notifications TO service_role;
-GRANT SELECT ON TABLE public.notifications TO anon;
+
+-- Database-Level Immutability Trigger for Notifications
+CREATE OR REPLACE FUNCTION public.prevent_notification_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.id <> OLD.id THEN
+    RAISE EXCEPTION 'Notification id cannot be modified.';
+  END IF;
+
+  IF NEW.recipient_id <> OLD.recipient_id THEN
+    RAISE EXCEPTION 'Notification recipient_id cannot be modified.';
+  END IF;
+
+  IF NEW.actor_id IS DISTINCT FROM OLD.actor_id THEN
+    RAISE EXCEPTION 'Notification actor_id cannot be modified.';
+  END IF;
+
+  IF NEW.type <> OLD.type THEN
+    RAISE EXCEPTION 'Notification type cannot be modified.';
+  END IF;
+
+  IF NEW.title <> OLD.title THEN
+    RAISE EXCEPTION 'Notification title cannot be modified.';
+  END IF;
+
+  IF NEW.message <> OLD.message THEN
+    RAISE EXCEPTION 'Notification message cannot be modified.';
+  END IF;
+
+  IF NEW.reference_id IS DISTINCT FROM OLD.reference_id THEN
+    RAISE EXCEPTION 'Notification reference_id cannot be modified.';
+  END IF;
+
+  IF NEW.reference_type IS DISTINCT FROM OLD.reference_type THEN
+    RAISE EXCEPTION 'Notification reference_type cannot be modified.';
+  END IF;
+
+  IF NEW.created_at <> OLD.created_at THEN
+    RAISE EXCEPTION 'Notification created_at cannot be modified.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_notification_mutation ON public.notifications;
+CREATE TRIGGER trg_prevent_notification_mutation
+  BEFORE UPDATE ON public.notifications
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_notification_mutation();
 
 -- Automatic Notification Dispatch Trigger Function
 CREATE OR REPLACE FUNCTION public.handle_meeting_notification()

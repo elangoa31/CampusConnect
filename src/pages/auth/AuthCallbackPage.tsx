@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Compass, AlertCircle, Loader2, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Compass, AlertCircle, Loader2, ArrowRight, ShieldAlert, Smartphone } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { AuthService, INTENDED_ROLE_STORAGE_KEY } from '../../services/auth.service';
 import { isStudentProfileComplete } from '../../utils/validation';
+import { isNativePlatform } from '../../utils/platform';
 import { useAuth } from '../../context/useAuth';
 import type { UserRole } from '../../types/auth.types';
 
@@ -12,6 +13,7 @@ export const AuthCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { setIntendedRole, refreshProfile } = useAuth();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRedirectingToApp, setIsRedirectingToApp] = useState(false);
   const [roleMismatch, setRoleMismatch] = useState<{
     actualRole: UserRole;
     expectedRole: UserRole;
@@ -102,6 +104,27 @@ export const AuthCallbackPage: React.FC = () => {
     };
 
     const processOAuthCallback = async () => {
+      // 0. If opened on an Android mobile browser (e.g. Chrome Custom Tabs), redirect back into native app
+      if (
+        !isNativePlatform() &&
+        typeof window !== 'undefined' &&
+        typeof navigator !== 'undefined' &&
+        /android/i.test(navigator.userAgent)
+      ) {
+        const hasAuthParams =
+          window.location.search.includes('code=') ||
+          window.location.hash.includes('access_token=') ||
+          searchParams.has('code') ||
+          searchParams.has('error');
+
+        if (hasAuthParams) {
+          const nativeUrl = `campusconnect://auth/callback${window.location.search}${window.location.hash}`;
+          setIsRedirectingToApp(true);
+          window.location.href = nativeUrl;
+          return;
+        }
+      }
+
       // 1. Check for error in query or hash params
       const errorParam = searchParams.get('error') || searchParams.get('error_description');
       if (errorParam) {
@@ -184,7 +207,28 @@ export const AuthCallbackPage: React.FC = () => {
           <Compass className="w-8 h-8 text-teal-200" />
         </div>
 
-        {roleMismatch ? (
+        {isRedirectingToApp ? (
+          <div className="space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-teal-50 text-[#0d5c58] flex items-center justify-center mx-auto border border-teal-200/80">
+              <Smartphone className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-bold text-slate-900">
+                Opening CampusConnect App...
+              </h2>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                Authentication successful. Returning you to the installed mobile application.
+              </p>
+            </div>
+            <a
+              href={`campusconnect://auth/callback${typeof window !== 'undefined' ? window.location.search + window.location.hash : ''}`}
+              className="w-full py-3 px-4 bg-[#0d5c58] hover:bg-[#094340] text-white font-semibold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+            >
+              <span>Tap to Open CampusConnect App</span>
+              <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        ) : roleMismatch ? (
           <div className="space-y-4 text-left animate-fadeIn">
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 space-y-2">
               <div className="flex items-center gap-2 text-amber-800 font-bold text-sm">
