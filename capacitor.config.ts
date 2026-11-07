@@ -8,20 +8,23 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 2000,
-      backgroundColor: '#020617', // slate-950 to match app background
-      showSpinner: false,
+      backgroundColor: '#020617',
+      showSpinner: false
     },
     Keyboard: {
       resize: 'body',
-      resizeOnFullScreen: true,
+      resizeOnFullScreen: true
     },
+    CapacitorUpdater: {
+      version: '0.0.0',
+      appId: 'com.campusconnect.app',
+      autoUpdate: 'atBackground'
+    }
   },
   android: {
-    // Allow mixed content for development
     allowMixedContent: false,
-    // Append URL hash to enable OAuth callback hash parsing
-    appendUrlHash: true,
-  },
+    appendUrlHash: true
+  }
 };
 
 export default config;
